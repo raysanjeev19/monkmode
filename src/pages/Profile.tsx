@@ -12,11 +12,14 @@ import {
   Cloud,
   BellRing,
   RefreshCw,
+  LogOut,
 } from "lucide-react";
 import { useStore, habitStreak } from "../store/useStore";
 import { cn, haptic } from "../lib/ui";
 import { todayISO, formatLong } from "../lib/date";
 import { pushState, pullState } from "../lib/sync";
+import { auth, isFirebaseConfigured } from "../lib/firebase";
+import { logout } from "../lib/auth";
 import GlassCard from "../components/GlassCard";
 
 interface BIPEvent extends Event {
@@ -65,7 +68,7 @@ export default function Profile() {
       const had = await pullState();
       setSyncMsg(had ? "Synced from cloud ✓" : "Cloud sync on ✓");
     } catch {
-      setSyncMsg("Backend not deployed yet — sync will work once /api is live.");
+      setSyncMsg("Sign in to enable cloud sync.");
     }
   };
 
@@ -76,7 +79,19 @@ export default function Profile() {
       await pushState();
       setSyncMsg("Backed up to cloud ✓");
     } catch {
-      setSyncMsg("Couldn't reach the backend (/api/state).");
+      setSyncMsg("Sign in to back up your data.");
+    }
+  };
+
+  const doLogout = async () => {
+    if (!confirm("Log out of MonkMode? Your data stays safe in the cloud.")) return;
+    haptic(12);
+    try {
+      await logout();
+      // Clear this device's local copy so the next account starts clean.
+      resetData();
+    } catch {
+      alert("Couldn't log out. Please try again.");
     }
   };
 
@@ -124,9 +139,37 @@ export default function Profile() {
         </span>
         <div>
           <h1 className="text-2xl font-bold">{profile.name}</h1>
-          <p className="text-sm text-ink-mute">MonkMode member</p>
+          <p className="text-sm text-ink-mute">
+            {isFirebaseConfigured && auth?.currentUser?.email
+              ? auth.currentUser.email
+              : "MonkMode member"}
+          </p>
         </div>
       </header>
+
+      {/* Account & Sync */}
+      {isFirebaseConfigured && (
+        <GlassCard className="space-y-2 p-4" index={0}>
+          <h2 className="mb-1 font-semibold">Account &amp; Sync</h2>
+          <ToggleRow
+            icon={Cloud}
+            title="Cloud sync"
+            sub="Keep your data on all devices"
+            on={syncEnabled}
+            onClick={toggleSync}
+          />
+          <ToggleRow
+            icon={BellRing}
+            title="Reminders"
+            sub="Notify me when a task is due"
+            on={remindersEnabled}
+            onClick={toggleReminders}
+          />
+          <Row onClick={syncNow} icon={RefreshCw} label="Sync now" tint="text-success" />
+          {syncMsg && <p className="px-2 text-xs text-ink-mute">{syncMsg}</p>}
+          <Row onClick={doLogout} icon={LogOut} label="Log out" tint="text-danger" />
+        </GlassCard>
+      )}
 
       {/* Personal info */}
       <GlassCard className="space-y-3 p-4" index={0}>
@@ -162,34 +205,6 @@ export default function Profile() {
             <ThemeBtn active={profile.theme === "light"} onClick={() => updateProfile({ theme: "light" })} icon={Sun} label="Light" />
           </div>
         </div>
-      </GlassCard>
-
-      {/* Sync & reminders */}
-      <GlassCard className="p-4" index={2}>
-        <h2 className="mb-2 font-semibold">Sync & Reminders</h2>
-        <ToggleRow
-          icon={BellRing}
-          title="Reminders"
-          sub="Notify me when a task is due"
-          on={remindersEnabled}
-          onClick={toggleReminders}
-        />
-        <ToggleRow
-          icon={Cloud}
-          title="Cloud Sync"
-          sub="Back up & sync across devices"
-          on={syncEnabled}
-          onClick={toggleSync}
-        />
-        {syncEnabled && (
-          <button
-            onClick={syncNow}
-            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl surface py-3 text-sm font-medium text-ink ring-1 ring-line active:scale-[0.98]"
-          >
-            <RefreshCw size={16} /> Sync now
-          </button>
-        )}
-        {syncMsg && <p className="mt-2 text-center text-xs text-ink-mute">{syncMsg}</p>}
       </GlassCard>
 
       {/* Habits */}

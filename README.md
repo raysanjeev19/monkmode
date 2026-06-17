@@ -1,8 +1,8 @@
-# ⚡ Forge Life OS
+# ⚡ MonkMode
 
 A **mobile-first PWA** for productivity, fitness, study, habits, and long-term goals — built for simplicity and consistency. Premium dark theme, glassmorphism, Apple + Notion-inspired, thumb-friendly one-hand navigation.
 
-> Local-first: all data lives in your browser (Zustand + `localStorage`) so it works fully **offline** and is **installable** as an app. A `prisma/schema.prisma` is included to mirror the model for a future sync API.
+> Local-first: data lives in your browser (Zustand + `localStorage`) so it works fully **offline** and is **installable**. Add Firebase keys to enable **login + real-time cloud sync** across devices — see [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) and [DEPLOY.md](./DEPLOY.md). Without keys it runs in local-only mode.
 
 ---
 
@@ -31,7 +31,7 @@ Open it on your phone (or DevTools device mode at 375px) → **Add to Home Scree
 | Icons | **lucide-react** | SVG icons (no emoji icons) |
 | Dates | **date-fns** | Week/month grids, streaks |
 | PWA | **vite-plugin-pwa** | Offline cache + installable manifest |
-| Backend (future) | **Node + PostgreSQL + Prisma** | See `prisma/schema.prisma` |
+| Backend | **Firebase** (Auth + Cloud Firestore) | Login + real-time per-user sync, offline cache |
 
 > **React Query** is intentionally omitted — there is no remote data to fetch in the local-first build. It slots in alongside the Prisma API later.
 
@@ -107,14 +107,14 @@ Derived selectors: `itemsForDate`, `dayCompletion`, `computeStreak`, `habitStrea
 
 ---
 
-## Data model (backend)
+## Backend (Firebase)
 
-`prisma/schema.prisma` mirrors `src/types/index.ts`: `User`, `PlanItem`, `Goal`+`Milestone`, `Habit`+`HabitEntry` (one row per completed day for fast streak queries), `JournalEntry`, `WeightLog`, `WaterLog`. Enums for `TaskType`, `TaskStatus`, `GoalCategory`, `Theme`.
-
-To wire a backend later:
-1. `DATABASE_URL=postgres://…` in `.env`
-2. `npx prisma migrate dev`
-3. Build a thin REST/tRPC layer and swap the Zustand actions to call it (keep `localStorage` as the offline cache).
+- **Auth** (`src/lib/auth.ts`) — email/password + Google sign-in, `useAuth()` hook.
+- **Cloud Firestore** (`src/lib/firebase.ts`, `src/lib/sync.ts`) — each user's whole
+  state lives in one doc at `userState/{uid}`. Local edits push up (debounced), remote
+  changes stream in live (`onSnapshot`), with offline persistence. Falls back to a no-op
+  when Firebase isn't configured, so the app always runs.
+- Setup + security rules: [FIREBASE_SETUP.md](./FIREBASE_SETUP.md). Deploy: [DEPLOY.md](./DEPLOY.md).
 
 ---
 
@@ -127,13 +127,10 @@ To wire a backend later:
 - ✅ Goals: 4 categories, progress, deadlines, milestones
 - ✅ Progress: weight, completion %, running, study-hours charts + habit streaks
 - ✅ Profile: editable info, **working** dark/light theme switch, habit tracker, journal, JSON export, reset
-- ✅ FAB radial quick-add (Task / Workout / Goal / Note)
+- ✅ Draggable floating quick-add (Task / Workout / Study / Habit / Goal / Note)
+- ✅ Task priority (low/med/high) + recurring tasks (daily/weekly)
+- ✅ First-run onboarding; edit goal title/target/unit/deadline
+- ✅ Local reminders (notify at task time) + Firebase login & real-time sync
 - ✅ Habit streak tracking + daily journal with mood
 - ✅ PWA: offline support, installable, theme-color, safe-area aware
 - ✅ Accessibility: 44px targets, focus rings, aria-labels, reduced-motion
-
-### Not yet wired (clear next steps)
-- Backend persistence/sync (schema ready in `prisma/`)
-- Push/local notifications (manifest + SW in place; needs Notification API hookup)
-- Multi-device calendar integration
-```

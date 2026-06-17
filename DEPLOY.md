@@ -1,61 +1,57 @@
 # Deploying MonkMode to Vercel
 
-The app is a Vite PWA (static) + serverless API functions in `/api` (Node + Prisma + PostgreSQL).
-Vercel serves both from one project.
+MonkMode is a Vite PWA with a **Firebase** backend (Auth + Cloud Firestore).
+There's no server to run — Vercel hosts the static app, Firebase handles login + data.
 
-## 1. Get a Postgres database (free options)
+## 1. Set up Firebase (once)
 
-Pick one and copy its connection string:
+Follow **[FIREBASE_SETUP.md](./FIREBASE_SETUP.md)** — create a project, enable
+Email/Password (and Google) auth, create Firestore, paste the publish rules, and
+copy your 6 `VITE_FIREBASE_*` keys.
 
-- **Vercel Postgres** — Vercel dashboard → Storage → Create → Postgres (auto-adds `DATABASE_URL`)
-- **Neon** — https://neon.tech → new project → copy `postgresql://…?sslmode=require`
-- **Supabase** — https://supabase.com → Project → Settings → Database → URI
+> Without these keys the app still runs in **local-only mode** (no login, data in the
+> browser). Add them to turn on login + cross-device sync.
 
-## 2. Deploy (CLI — fastest)
+## 2. Deploy to Vercel
 
+### Option A — GitHub import (recommended)
+1. Push is already done → repo: `https://github.com/raysanjeev19/monkmode`
+2. On **vercel.com → Add New → Project**, import `raysanjeev19/monkmode`.
+3. Framework preset: **Vite** (auto-detected; `vercel.json` already configures it).
+4. **Environment Variables** → add the 6 keys from step 1:
+   ```
+   VITE_FIREBASE_API_KEY
+   VITE_FIREBASE_AUTH_DOMAIN
+   VITE_FIREBASE_PROJECT_ID
+   VITE_FIREBASE_STORAGE_BUCKET
+   VITE_FIREBASE_MESSAGING_SENDER_ID
+   VITE_FIREBASE_APP_ID
+   ```
+5. **Deploy.**
+
+### Option B — CLI
 ```bash
-npm i -g vercel        # once
+npm i -g vercel
 cd monkmode
-vercel                 # login + link project (follow prompts)
-vercel env add DATABASE_URL     # paste your Postgres URL (Production + Preview)
-npx prisma migrate deploy       # create tables in that DB  (or: npm run db:push)
-vercel --prod          # ship it
+vercel                       # login + link to sanjeev-rays-projects
+# add each env var:
+vercel env add VITE_FIREBASE_API_KEY
+# … repeat for the other 5 …
+vercel --prod
 ```
 
-## 2b. Deploy (GitHub — auto-deploys on push)
+## 3. After deploy — authorize the domain
+Firebase Console → **Authentication → Settings → Authorized domains** → add your
+`*.vercel.app` domain (and any custom domain) so login works in production.
 
+## 4. Verify
+- `https://<app>.vercel.app/` loads (works offline, installable).
+- Sign up → data appears in Firestore (`userState/{uid}`).
+- Open on a second device, log in → same data syncs in real time.
+
+## Local dev
 ```bash
-git remote add origin https://github.com/<you>/monkmode.git
-git push -u origin main
-```
-Then on vercel.com → **Add New Project** → import the repo → add `DATABASE_URL` env var → Deploy.
-Run `npx prisma migrate deploy` once (locally with the prod `DATABASE_URL`, or via a one-off job).
-
-> `vercel.json` already sets the build (`prisma generate && vite build`), SPA routing,
-> and asset caching. The `/api/*` routes are excluded from the SPA rewrite automatically.
-
-## 3. Verify
-
-- `https://<your-app>.vercel.app/` → the app loads (works offline immediately, local-first)
-- `https://<your-app>.vercel.app/api/health` → `{ "ok": true }`
-
-## 4. (Optional) Turn on cloud sync
-
-The app runs **local-first** (no backend needed). To sync across devices, the API is ready:
-
-```
-GET  /api/state?userId=<id>        → { data, updatedAt }
-POST /api/state  { userId, data }  → { ok, updatedAt }
-```
-
-`data` is exactly the JSON from **Profile → Export**. Wiring it in is ~30 lines:
-push the store on change (debounced), pull on launch, last-write-wins. Say the word and
-I'll add a "Sync" toggle in Profile + a `useSync` hook. (Add real auth before multi-user.)
-
-## Local backend dev
-
-```bash
-cp .env.example .env     # put your DATABASE_URL
-npm run db:push          # create tables
-vercel dev               # runs the API + app locally
+cp .env.example .env     # paste your Firebase keys
+npm run dev
+npm test                 # 15 unit tests
 ```
