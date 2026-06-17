@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { useStore, itemsForDate, dayCompletion } from "../store/useStore";
@@ -20,10 +20,15 @@ import QuickAddSheet from "../components/QuickAddSheet";
 type View = "day" | "week" | "month";
 
 export default function Planner() {
-  const { items } = useStore();
+  const { items, ensureRecurring } = useStore();
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState(todayISO());
   const [addOpen, setAddOpen] = useState(false);
+
+  // generate recurring occurrences for the viewed day
+  useEffect(() => {
+    ensureRecurring(cursor);
+  }, [cursor, ensureRecurring]);
 
   const shift = (n: number) => {
     const step = view === "month" ? n * 30 : view === "week" ? n * 7 : n;

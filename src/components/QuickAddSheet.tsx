@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store/useStore";
-import { cn, taskMeta, categoryMeta, haptic } from "../lib/ui";
-import type { GoalCategory, TaskType } from "../types";
+import { cn, taskMeta, categoryMeta, priorityMeta, haptic } from "../lib/ui";
+import type { GoalCategory, Priority, Repeat, TaskType } from "../types";
 import { todayISO } from "../lib/date";
 import Sheet from "./Sheet";
 
@@ -41,6 +41,8 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", dat
   const [category, setCategory] = useState<GoalCategory>("fitness");
   const [deadline, setDeadline] = useState("");
   const [mood, setMood] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [priority, setPriority] = useState<Priority>("med");
+  const [repeat, setRepeat] = useState<Repeat>("none");
 
   useEffect(() => {
     if (open) setMode(initialMode);
@@ -53,6 +55,8 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", dat
     setUnit("");
     setDeadline("");
     setMood(3);
+    setPriority("med");
+    setRepeat("none");
   };
 
   const close = () => {
@@ -86,6 +90,8 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", dat
         time: time || undefined,
         target: target ? Number(target) : undefined,
         unit: unit || undefined,
+        priority,
+        repeat,
       });
     }
     haptic(12);
@@ -154,6 +160,50 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", dat
               className={inputCls}
             />
           </div>
+        )}
+
+        {/* Priority + Repeat — for scheduled plan items */}
+        {(mode === "task" || mode === "workout" || mode === "study") && (
+          <>
+            <div>
+              <span className={labelCls}>Priority</span>
+              <div className="grid grid-cols-3 gap-2">
+                {(["low", "med", "high"] as Priority[]).map((p) => {
+                  const M = priorityMeta[p];
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPriority(p)}
+                      className={cn(
+                        "flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl py-2.5 text-sm font-medium transition-colors",
+                        priority === p ? cn(M.bg, M.text) : "surface text-ink-mute",
+                      )}
+                    >
+                      <span className={cn("h-2 w-2 rounded-full", M.dot)} />
+                      {M.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <span className={labelCls}>Repeat</span>
+              <div className="grid grid-cols-3 gap-2">
+                {(["none", "daily", "weekly"] as Repeat[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRepeat(r)}
+                    className={cn(
+                      "cursor-pointer rounded-2xl py-2.5 text-sm font-medium capitalize transition-colors",
+                      repeat === r ? "bg-primary text-white" : "surface text-ink-mute",
+                    )}
+                  >
+                    {r === "none" ? "Once" : r}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Target/unit — progress tasks & goals */}

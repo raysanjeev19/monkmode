@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X, Clock, Repeat as RepeatIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import type { PlanItem } from "../types";
-import { cn, taskMeta, haptic } from "../lib/ui";
+import { cn, taskMeta, priorityMeta, haptic } from "../lib/ui";
 import ProgressBar from "./ProgressBar";
 import ItemActionsSheet from "./ItemActionsSheet";
 
@@ -37,9 +37,14 @@ export default function PlanItemCard({ item, index = 0 }: { item: PlanItem; inde
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className={cn("truncate font-semibold", done && "text-ink-mute line-through")}>
-            {item.title}
-          </p>
+          <div className="flex items-center gap-1.5">
+            {item.priority && (
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", priorityMeta[item.priority].dot)} />
+            )}
+            <p className={cn("truncate font-semibold", done && "text-ink-mute line-through")}>
+              {item.title}
+            </p>
+          </div>
           <div className="mt-0.5 flex items-center gap-2 text-xs text-ink-mute">
             {item.time && (
               <span className="flex items-center gap-1">
@@ -47,6 +52,7 @@ export default function PlanItemCard({ item, index = 0 }: { item: PlanItem; inde
               </span>
             )}
             <span className={M.text}>{M.label}</span>
+            {(item.repeat || item.seriesId) && <RepeatIcon size={12} className="text-ink-faint" />}
             {item.progress && (
               <span>
                 {item.progress.current}/{item.progress.target} {item.progress.unit}

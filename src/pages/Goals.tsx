@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Minus, Trash2, CalendarClock, CheckCircle2, Circle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Minus, Trash2, Pencil, CalendarClock, CheckCircle2, Circle } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
 import { useStore } from "../store/useStore";
 import { categoryMeta, cn, haptic } from "../lib/ui";
@@ -128,11 +128,76 @@ function GoalCard({ goal, index, onOpen }: { goal: Goal; index: number; onOpen: 
   );
 }
 
+const gField =
+  "w-full rounded-2xl border hairline surface px-4 py-3 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/30";
+const gLabel = "mb-1.5 block text-sm font-medium text-ink-mute";
+
 function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
-  const { bumpGoal, toggleMilestone, removeGoal } = useStore();
+  const { bumpGoal, toggleMilestone, removeGoal, updateGoal } = useStore();
+  const [editing, setEditing] = useState(false);
+  const [eTitle, setETitle] = useState("");
+  const [eTarget, setETarget] = useState("");
+  const [eUnit, setEUnit] = useState("");
+  const [eDeadline, setEDeadline] = useState("");
+
+  useEffect(() => {
+    setEditing(false);
+  }, [goal?.id]);
+
   if (!goal) return null;
   const M = categoryMeta[goal.category];
   const pct = Math.round((goal.current / goal.target) * 100);
+
+  const openEdit = () => {
+    setETitle(goal.title);
+    setETarget(String(goal.target));
+    setEUnit(goal.unit);
+    setEDeadline(goal.deadline ?? "");
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    updateGoal(goal.id, {
+      title: eTitle.trim() || goal.title,
+      target: Number(eTarget) > 0 ? Number(eTarget) : goal.target,
+      unit: eUnit.trim() || goal.unit,
+      deadline: eDeadline || undefined,
+    });
+    setEditing(false);
+    haptic();
+  };
+
+  if (editing) {
+    return (
+      <Sheet open onClose={onClose} title="Edit Goal">
+        <div className="space-y-4">
+          <div>
+            <label className={gLabel} htmlFor="g-title">Title</label>
+            <input id="g-title" value={eTitle} onChange={(e) => setETitle(e.target.value)} className={gField} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={gLabel} htmlFor="g-target">Target</label>
+              <input id="g-target" type="number" inputMode="numeric" value={eTarget} onChange={(e) => setETarget(e.target.value)} className={gField} />
+            </div>
+            <div>
+              <label className={gLabel} htmlFor="g-unit">Unit</label>
+              <input id="g-unit" value={eUnit} onChange={(e) => setEUnit(e.target.value)} className={gField} />
+            </div>
+          </div>
+          <div>
+            <label className={gLabel} htmlFor="g-deadline">Deadline</label>
+            <input id="g-deadline" type="date" value={eDeadline} onChange={(e) => setEDeadline(e.target.value)} className={gField} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setEditing(false)} className="cursor-pointer rounded-2xl surface py-3.5 font-medium text-ink-mute ring-1 ring-line active:scale-[0.98]">
+              Cancel
+            </button>
+            <button onClick={saveEdit} className="btn-primary py-3.5">Save</button>
+          </div>
+        </div>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet open={!!goal} onClose={onClose} title={goal.title}>
@@ -201,15 +266,23 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
           </div>
         )}
 
-        <button
-          onClick={() => {
-            removeGoal(goal.id);
-            onClose();
-          }}
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-danger/10 py-3 font-medium text-danger ring-1 ring-danger/30 active:scale-[0.98]"
-        >
-          <Trash2 size={18} /> Delete Goal
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={openEdit}
+            className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl surface py-3 font-medium text-ink ring-1 ring-line active:scale-[0.98]"
+          >
+            <Pencil size={18} /> Edit
+          </button>
+          <button
+            onClick={() => {
+              removeGoal(goal.id);
+              onClose();
+            }}
+            className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-danger/10 py-3 font-medium text-danger ring-1 ring-danger/30 active:scale-[0.98]"
+          >
+            <Trash2 size={18} /> Delete
+          </button>
+        </div>
       </div>
     </Sheet>
   );

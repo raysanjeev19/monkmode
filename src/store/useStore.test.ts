@@ -32,6 +32,16 @@ describe("itemsForDate", () => {
     const out = itemsForDate(items, T);
     expect(out.map((i) => i.title)).toEqual(["a", "b"]);
   });
+
+  it("breaks time ties by priority (high first)", () => {
+    const items = [
+      item({ title: "low", priority: "low" }),
+      item({ title: "high", priority: "high" }),
+      item({ title: "med", priority: "med" }),
+    ];
+    const out = itemsForDate(items, T);
+    expect(out.map((i) => i.title)).toEqual(["high", "med", "low"]);
+  });
 });
 
 describe("dayCompletion", () => {

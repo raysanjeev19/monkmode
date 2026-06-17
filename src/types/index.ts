@@ -4,6 +4,8 @@ export type ID = string;
 
 export type TaskType = "task" | "workout" | "study" | "habit";
 export type TaskStatus = "pending" | "done" | "skipped";
+export type Priority = "low" | "med" | "high";
+export type Repeat = "none" | "daily" | "weekly";
 
 export interface PlanItem {
   id: ID;
@@ -16,6 +18,11 @@ export interface PlanItem {
   status: TaskStatus;
   /** progress-based tasks: current/target with a unit ("KM", "Min", "reps") */
   progress?: { current: number; target: number; unit: string };
+  priority?: Priority;
+  /** recurrence on the template item */
+  repeat?: Repeat;
+  /** set on generated occurrences — points at the template item id */
+  seriesId?: ID;
   note?: string;
   createdAt: number;
 }
@@ -71,4 +78,5 @@ export interface Profile {
   targetWeightKg: number;
   waterTargetMl: number;
   theme: Theme;
+  onboarded: boolean;
 }

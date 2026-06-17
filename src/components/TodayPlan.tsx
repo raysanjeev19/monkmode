@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import type { PlanItem } from "../types";
 import { useStore, itemsForDate } from "../store/useStore";
 import { todayISO } from "../lib/date";
-import { cn, taskMeta, haptic } from "../lib/ui";
+import { cn, taskMeta, priorityMeta, haptic } from "../lib/ui";
 import GlassCard from "./GlassCard";
 import ItemActionsSheet from "./ItemActionsSheet";
 
@@ -103,9 +103,14 @@ function Row({
 
       {/* content */}
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate text-sm font-semibold", (done || skipped) && "text-ink-mute line-through")}>
-          {item.title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          {item.priority && (
+            <span className={cn("h-2 w-2 shrink-0 rounded-full", priorityMeta[item.priority].dot)} />
+          )}
+          <p className={cn("truncate text-sm font-semibold", (done || skipped) && "text-ink-mute line-through")}>
+            {item.title}
+          </p>
+        </div>
         <p className="truncate text-xs text-ink-mute">{M.label}</p>
       </div>
 

@@ -8,7 +8,7 @@ import {
   Heart,
   type LucideIcon,
 } from "lucide-react";
-import type { GoalCategory, TaskType } from "../types";
+import type { GoalCategory, Priority, TaskType } from "../types";
 
 export const cn = (...parts: Array<string | false | null | undefined>): string =>
   parts.filter(Boolean).join(" ");
@@ -83,6 +83,14 @@ export const categoryMeta: Record<GoalCategory, Meta> = {
     ring: "ring-rose-500/30",
   },
 };
+
+export const priorityMeta: Record<Priority, { label: string; dot: string; text: string; bg: string }> = {
+  high: { label: "High", dot: "bg-danger", text: "text-danger", bg: "bg-danger/12" },
+  med: { label: "Medium", dot: "bg-warning", text: "text-warning", bg: "bg-warning/12" },
+  low: { label: "Low", dot: "bg-ink-faint", text: "text-ink-faint", bg: "bg-ink-faint/12" },
+};
+
+export const priorityRank: Record<Priority, number> = { high: 0, med: 1, low: 2 };
 
 /** Light haptic feedback where supported (no-op otherwise). */
 export const haptic = (ms = 8) => {

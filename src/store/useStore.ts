@@ -6,7 +6,9 @@ import type {
   Habit,
   JournalEntry,
   PlanItem,
+  Priority,
   Profile,
+  Repeat,
   TaskType,
   WeightLog,
 } from "../types";
@@ -31,6 +33,15 @@ interface State {
   weight: WeightLog[];
   water: Record<string, number>;
 
+  // ── Account / sync / settings ──
+  userId: string;
+  syncEnabled: boolean;
+  remindersEnabled: boolean;
+  setSyncEnabled: (on: boolean) => void;
+  setRemindersEnabled: (on: boolean) => void;
+  completeOnboarding: (patch: Partial<Profile>) => void;
+  importData: (snapshot: Partial<State>) => void;
+
   // ── Plan items ──
   addItem: (input: {
     title: string;
@@ -40,11 +51,15 @@ interface State {
     target?: number;
     unit?: string;
     note?: string;
+    priority?: Priority;
+    repeat?: Repeat;
   }) => void;
   updateItem: (id: string, patch: Partial<PlanItem>) => void;
   setItemStatus: (id: string, status: PlanItem["status"]) => void;
   bumpProgress: (id: string, delta: number) => void;
   removeItem: (id: string) => void;
+  /** materialise recurring templates as concrete occurrences for `date` */
+  ensureRecurring: (date: string) => void;
 
   // ── Goals ──
   addGoal: (input: {
@@ -86,6 +101,25 @@ export const useStore = create<State>()(
       weight: seedWeight,
       water: seedWater,
 
+      userId: uid() + uid(),
+      syncEnabled: false,
+      remindersEnabled: false,
+
+      setSyncEnabled: (on) => set({ syncEnabled: on }),
+      setRemindersEnabled: (on) => set({ remindersEnabled: on }),
+      completeOnboarding: (patch) =>
+        set((s) => ({ profile: { ...s.profile, ...patch, onboarded: true } })),
+      importData: (snapshot) =>
+        set((s) => ({
+          profile: snapshot.profile ?? s.profile,
+          items: snapshot.items ?? s.items,
+          goals: snapshot.goals ?? s.goals,
+          habits: snapshot.habits ?? s.habits,
+          journal: snapshot.journal ?? s.journal,
+          weight: snapshot.weight ?? s.weight,
+          water: snapshot.water ?? s.water,
+        })),
+
       addItem: (input) =>
         set((s) => ({
           items: [
@@ -98,6 +132,8 @@ export const useStore = create<State>()(
               time: input.time,
               status: "pending",
               note: input.note,
+              priority: input.priority,
+              repeat: input.repeat && input.repeat !== "none" ? input.repeat : undefined,
               progress:
                 input.target && input.target > 0
                   ? { current: 0, target: input.target, unit: input.unit ?? "" }
@@ -106,6 +142,31 @@ export const useStore = create<State>()(
             },
           ],
         })),
+
+      ensureRecurring: (date) =>
+        set((s) => {
+          const additions: PlanItem[] = [];
+          for (const t of s.items) {
+            if (!t.repeat || t.repeat === "none" || t.seriesId) continue;
+            if (date <= t.date) continue; // template already covers its own date
+            if (
+              t.repeat === "weekly" &&
+              new Date(date).getDay() !== new Date(t.date).getDay()
+            )
+              continue;
+            if (s.items.some((i) => i.seriesId === t.id && i.date === date)) continue;
+            additions.push({
+              ...t,
+              id: uid(),
+              date,
+              status: "pending",
+              seriesId: t.id,
+              progress: t.progress ? { ...t.progress, current: 0 } : undefined,
+              createdAt: Date.now(),
+            });
+          }
+          return additions.length ? { items: [...s.items, ...additions] } : {};
+        }),
 
       updateItem: (id, patch) =>
         set((s) => ({
@@ -283,10 +344,15 @@ export const useStore = create<State>()(
 
 // ── Derived selectors (pure helpers, used across pages) ──────────
 
+const rank: Record<string, number> = { high: 0, med: 1, low: 2 };
 export const itemsForDate = (items: PlanItem[], date: string): PlanItem[] =>
   items
     .filter((i) => i.date === date)
-    .sort((a, b) => (a.time ?? "99:99").localeCompare(b.time ?? "99:99"));
+    .sort((a, b) => {
+      const t = (a.time ?? "99:99").localeCompare(b.time ?? "99:99");
+      if (t !== 0) return t;
+      return (rank[a.priority ?? "low"] ?? 2) - (rank[b.priority ?? "low"] ?? 2);
+    });
 
 export const dayCompletion = (items: PlanItem[], date: string): number => {
   const day = items.filter((i) => i.date === date && i.status !== "skipped");

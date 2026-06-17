@@ -9,10 +9,14 @@ import {
   Check,
   Flame,
   Share2,
+  Cloud,
+  BellRing,
+  RefreshCw,
 } from "lucide-react";
 import { useStore, habitStreak } from "../store/useStore";
 import { cn, haptic } from "../lib/ui";
 import { todayISO, formatLong } from "../lib/date";
+import { pushState, pullState } from "../lib/sync";
 import GlassCard from "../components/GlassCard";
 
 interface BIPEvent extends Event {
@@ -28,6 +32,10 @@ export default function Profile() {
     profile,
     habits,
     journal,
+    syncEnabled,
+    remindersEnabled,
+    setSyncEnabled,
+    setRemindersEnabled,
     updateProfile,
     addHabit,
     toggleHabit,
@@ -38,7 +46,39 @@ export default function Profile() {
 
   const [newHabit, setNewHabit] = useState("");
   const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null);
+  const [syncMsg, setSyncMsg] = useState<string>("");
   const today = todayISO();
+
+  const toggleReminders = async () => {
+    if (remindersEnabled) return setRemindersEnabled(false);
+    if (typeof Notification === "undefined") return alert("Notifications not supported on this device.");
+    const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    setRemindersEnabled(perm === "granted");
+    if (perm !== "granted") alert("Allow notifications to get reminders.");
+  };
+
+  const toggleSync = async () => {
+    if (syncEnabled) return setSyncEnabled(false);
+    setSyncEnabled(true);
+    setSyncMsg("Connecting…");
+    try {
+      const had = await pullState();
+      setSyncMsg(had ? "Synced from cloud ✓" : "Cloud sync on ✓");
+    } catch {
+      setSyncMsg("Backend not deployed yet — sync will work once /api is live.");
+    }
+  };
+
+  const syncNow = async () => {
+    setSyncMsg("Syncing…");
+    haptic(12);
+    try {
+      await pushState();
+      setSyncMsg("Backed up to cloud ✓");
+    } catch {
+      setSyncMsg("Couldn't reach the backend (/api/state).");
+    }
+  };
 
   // Apply theme to <html> whenever it changes
   useEffect(() => {
@@ -63,7 +103,7 @@ export default function Profile() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `forge-life-os-${today}.json`;
+    a.download = `monkmode-${today}.json`;
     a.click();
     URL.revokeObjectURL(url);
     haptic(12);
@@ -124,8 +164,36 @@ export default function Profile() {
         </div>
       </GlassCard>
 
-      {/* Habits */}
+      {/* Sync & reminders */}
       <GlassCard className="p-4" index={2}>
+        <h2 className="mb-2 font-semibold">Sync & Reminders</h2>
+        <ToggleRow
+          icon={BellRing}
+          title="Reminders"
+          sub="Notify me when a task is due"
+          on={remindersEnabled}
+          onClick={toggleReminders}
+        />
+        <ToggleRow
+          icon={Cloud}
+          title="Cloud Sync"
+          sub="Back up & sync across devices"
+          on={syncEnabled}
+          onClick={toggleSync}
+        />
+        {syncEnabled && (
+          <button
+            onClick={syncNow}
+            className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl surface py-3 text-sm font-medium text-ink ring-1 ring-line active:scale-[0.98]"
+          >
+            <RefreshCw size={16} /> Sync now
+          </button>
+        )}
+        {syncMsg && <p className="mt-2 text-center text-xs text-ink-mute">{syncMsg}</p>}
+      </GlassCard>
+
+      {/* Habits */}
+      <GlassCard className="p-4" index={3}>
         <h2 className="mb-3 font-semibold">Habits</h2>
         <div className="space-y-2">
           {habits.map((h) => {
@@ -237,6 +305,49 @@ function Field({ label, value, onChange }: { label: string; value: number; onCha
         onChange={(e) => onChange(e.target.value)}
         className={fieldCls}
       />
+    </div>
+  );
+}
+
+function ToggleRow({
+  icon: Icon,
+  title,
+  sub,
+  on,
+  onClick,
+}: {
+  icon: typeof Cloud;
+  title: string;
+  sub: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 py-2.5">
+      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", on ? "bg-primary/15 text-primary" : "surface text-ink-faint")}>
+        <Icon size={18} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="truncate text-xs text-ink-mute">{sub}</p>
+      </div>
+      <button
+        role="switch"
+        aria-checked={on}
+        aria-label={title}
+        onClick={onClick}
+        className={cn(
+          "relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors",
+          on ? "bg-primary" : "surface-2",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all",
+            on ? "left-6" : "left-1",
+          )}
+        />
+      </button>
     </div>
   );
 }

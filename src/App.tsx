@@ -2,8 +2,11 @@ import { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useStore } from "./store/useStore";
+import { todayISO } from "./lib/date";
+import { useReminders } from "./lib/useReminders";
 import BottomNav from "./components/BottomNav";
 import DraggableFab from "./components/DraggableFab";
+import Onboarding from "./components/Onboarding";
 import Home from "./pages/Home";
 
 // Code-split the heavier tabs (Progress pulls in Recharts).
@@ -48,12 +51,23 @@ function AnimatedRoutes() {
 
 export default function App() {
   const theme = useStore((s) => s.profile.theme);
+  const onboarded = useStore((s) => s.profile.onboarded);
+  const ensureRecurring = useStore((s) => s.ensureRecurring);
 
   // Keep <html> theme class in sync app-wide (Profile also sets it)
   useEffect(() => {
     document.documentElement.classList.toggle("light", theme === "light");
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  // Materialise recurring tasks for today on launch
+  useEffect(() => {
+    ensureRecurring(todayISO());
+  }, [ensureRecurring]);
+
+  useReminders();
+
+  if (!onboarded) return <Onboarding />;
 
   return (
     <BrowserRouter>

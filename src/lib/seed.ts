@@ -12,6 +12,7 @@ export const seedProfile: Profile = {
   targetWeightKg: 71,
   waterTargetMl: 3000,
   theme: "light",
+  onboarded: false,
 };
 
 export const seedItems: PlanItem[] = [
