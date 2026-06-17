@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── WARM LIGHT THEME (default) — palette pulled from the MonkMode logo ──
+     RGB channel triplets for Tailwind's rgb(var() / <alpha-value>) */
+  :root {
+    --primary: 237 125 28; /* saffron orange */
+    --primary-soft: 245 158 58; /* amber */
+    --primary-dim: 201 97 12; /* deep orange */
+    --success: 22 163 74;
+    --warning: 224 138 11;
+    --danger: 220 38 38;
+
+    --bg: 251 244 233; /* warm cream (not white) */
+    --bg-soft: 244 234 217;
+    --card: 255 252 246; /* soft warm white */
+    --card-soft: 250 243 232;
+    --ink: 42 32 24; /* warm near-black */
+    --ink-mute: 124 111 98;
+    --ink-faint: 168 154 137;
+
+    --overlay: 120 86 46; /* warm brown — drives secondary surfaces */
+    --line: 120 86 46;
+    color-scheme: light;
+  }
+
+  /* ── Warm dark theme (optional, via Profile switch) ── */
+  html.dark {
+    --primary: 245 137 39;
+    --primary-soft: 250 176 90;
+    --primary-dim: 214 105 18;
+    --success: 34 197 94;
+    --warning: 245 170 50;
+    --danger: 248 113 113;
+
+    --bg: 21 18 14; /* warm near-black */
+    --bg-soft: 28 24 19;
+    --card: 36 31 24;
+    --card-soft: 44 38 29;
+    --ink: 247 242 233;
+    --ink-mute: 181 168 147;
+    --ink-faint: 135 124 107;
+
+    --overlay: 255 255 255;
+    --line: 255 255 255;
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg font-body text-ink antialiased;
+    /* warm ambient glow */
+    background-image:
+      radial-gradient(70% 45% at 85% -8%, rgba(245, 158, 58, 0.28), transparent 60%),
+      radial-gradient(55% 40% at -10% 0%, rgba(237, 125, 28, 0.16), transparent 55%),
+      radial-gradient(45% 35% at 50% 112%, rgba(244, 180, 90, 0.14), transparent 60%);
+    background-attachment: fixed;
+    overscroll-behavior-y: none;
+  }
+
+  html.dark body {
+    background-image:
+      radial-gradient(70% 45% at 85% -8%, rgba(245, 137, 39, 0.22), transparent 60%),
+      radial-gradient(55% 40% at -10% 0%, rgba(201, 97, 12, 0.18), transparent 55%),
+      radial-gradient(45% 35% at 50% 112%, rgba(34, 197, 94, 0.05), transparent 60%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Satoshi", system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@layer components {
+  /* ── Glass surfaces (default = light) — borderless, soft shadow ── */
+  .glass {
+    @apply border-0 backdrop-blur-[16px];
+    background-color: rgb(var(--card) / 0.95);
+    box-shadow:
+      0 3px 10px -8px rgba(120, 86, 46, 0.16),
+      0 1px 2px -1px rgba(120, 86, 46, 0.04);
+  }
+
+  html.dark .glass {
+    border: 1px solid rgb(255 255 255 / 0.07);
+    background-color: rgb(var(--card) / 0.62);
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0) 38%
+    );
+    box-shadow:
+      0 12px 34px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  .glass-soft {
+    @apply border-0 backdrop-blur-[12px];
+    background-color: rgb(var(--overlay) / 0.05);
+  }
+  html.dark .glass-soft {
+    border: 1px solid rgb(255 255 255 / 0.06);
+    background-color: rgb(255 255 255 / 0.05);
+  }
+
+  /* ── Theme-aware secondary surfaces (replace raw white/X overlays) ── */
+  .surface {
+    background-color: rgb(var(--overlay) / 0.05);
+  }
+  .surface-2 {
+    background-color: rgb(var(--overlay) / 0.1);
+  }
+  .surface-3 {
+    background-color: rgb(var(--overlay) / 0.16);
+  }
+  .surface-hover {
+    @apply transition-colors duration-200;
+  }
+  .surface-hover:hover {
+    background-color: rgb(var(--overlay) / 0.09);
+  }
+  .hairline {
+    border-color: rgb(var(--line) / 0.12);
+  }
+  .ring-line {
+    --tw-ring-color: rgb(var(--line) / 0.16);
+  }
+
+  /* ── Gradient fills / accents (saffron + gold) ── */
+  .grad-primary {
+    background-image: linear-gradient(90deg, #c9610c, #f59e3a);
+  }
+  .grad-success {
+    background-image: linear-gradient(90deg, #15803d, #22c55e);
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, #f6b45a, #ed7d1c 55%, #c9610c);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ── Primary CTA button ── */
+  .btn-primary {
+    @apply cursor-pointer rounded-2xl font-semibold text-white transition-transform active:scale-[0.98];
+    background-image: linear-gradient(135deg, #f59e3a, #ed7d1c 55%, #d2660e);
+    box-shadow:
+      0 10px 24px -8px rgba(237, 125, 28, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

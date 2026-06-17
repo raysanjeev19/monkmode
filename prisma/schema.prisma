@@ -1,0 +1,159 @@
+// Forge Life OS — backend schema (future Node + PostgreSQL API).
+// The current app is local-first (Zustand + localStorage). This schema mirrors
+// the client domain model in src/types/index.ts so a sync API drops in cleanly.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskType {
+  task
+  workout
+  study
+  habit
+}
+
+enum TaskStatus {
+  pending
+  done
+  skipped
+}
+
+enum GoalCategory {
+  fitness
+  career
+  learning
+  personal
+}
+
+enum Theme {
+  dark
+  light
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  name           String
+  weightKg       Float         @default(0)
+  heightCm       Float         @default(0)
+  targetWeightKg Float         @default(0)
+  waterTargetMl  Int           @default(3000)
+  theme          Theme         @default(dark)
+  createdAt      DateTime      @default(now())
+
+  planItems   PlanItem[]
+  goals       Goal[]
+  habits      Habit[]
+  journal     JournalEntry[]
+  weightLogs  WeightLog[]
+  waterLogs   WaterLog[]
+}
+
+model PlanItem {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  type      TaskType
+  date      DateTime   @db.Date
+  time      String? // "HH:mm"
+  status    TaskStatus @default(pending)
+  // progress-based tasks
+  progressCurrent Float?
+  progressTarget  Float?
+  progressUnit    String?
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@index([userId, date])
+}
+
+model Goal {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  category   GoalCategory
+  current    Float        @default(0)
+  target     Float
+  unit       String
+  deadline   DateTime?    @db.Date
+  createdAt  DateTime     @default(now())
+  milestones Milestone[]
+
+  @@index([userId, category])
+}
+
+model Milestone {
+  id     String  @id @default(cuid())
+  goalId String
+  goal   Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title  String
+  done   Boolean @default(false)
+}
+
+model Habit {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime    @default(now())
+  entries   HabitEntry[]
+}
+
+// One row per completed day keeps the log queryable for streak math.
+model HabitEntry {
+  id      String   @id @default(cuid())
+  habitId String
+  habit   Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date    DateTime @db.Date
+
+  @@unique([habitId, date])
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  mood      Int // 1–5
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+model WeightLog {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
+  kg     Float
+
+  @@unique([userId, date])
+}
+
+model WaterLog {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
+  ml     Int
+
+  @@unique([userId, date])
+}
+
+// Local-first cloud sync: the whole app state as one JSON blob per user.
+// Powers GET/POST /api/state. The relational models above are the future
+// normalized target; Snapshot makes sync work today with zero migration churn.
+model Snapshot {
+  userId    String   @id
+  data      Json
+  updatedAt DateTime @updatedAt
+}
