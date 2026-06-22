@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search, X, Dumbbell } from "lucide-react";
 import { format } from "date-fns";
 import {
   useStore,
@@ -22,6 +22,9 @@ import { cn, haptic } from "../lib/ui";
 import GlassCard from "../components/GlassCard";
 import PlanItemCard from "../components/PlanItemCard";
 import QuickAddSheet from "../components/QuickAddSheet";
+import WorkoutDaySheet from "../components/WorkoutDaySheet";
+import { useWorkoutPlan } from "../lib/useWorkoutPlan";
+import { resolveWorkout, type WorkoutPlan } from "../lib/workoutPlan";
 
 type View = "day" | "week" | "month";
 
@@ -196,19 +199,53 @@ function SearchResults({
 }
 
 function DayView({ date, items }: { date: string; items: ReturnType<typeof useStore.getState>["items"] }) {
+  const plan = useWorkoutPlan();
+  const [woOpen, setWoOpen] = useState(false);
   const list = itemsForDate(items, date);
-  if (list.length === 0)
-    return (
-      <GlassCard className="py-10 text-center text-ink-mute">
-        No tasks for this day.
-      </GlassCard>
-    );
   return (
     <div className="space-y-2.5">
-      {list.map((item, i) => (
-        <PlanItemCard key={item.id} item={item} index={i} />
-      ))}
+      {plan && <WorkoutCard onOpen={() => setWoOpen(true)} plan={plan} date={date} />}
+      {list.length === 0 ? (
+        <GlassCard className="py-8 text-center text-ink-mute">
+          No tasks for this day.
+        </GlassCard>
+      ) : (
+        list.map((item, i) => <PlanItemCard key={item.id} item={item} index={i} />)
+      )}
+      {plan && (
+        <WorkoutDaySheet open={woOpen} onClose={() => setWoOpen(false)} plan={plan} date={date} />
+      )}
     </div>
+  );
+}
+
+/** Tappable summary of the planned workout session for `date`. */
+function WorkoutCard({
+  plan,
+  date,
+  onOpen,
+}: {
+  plan: WorkoutPlan;
+  date: string;
+  onOpen: () => void;
+}) {
+  const w = resolveWorkout(plan, date);
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-primary/20 bg-primary/[0.07] px-3.5 py-3 text-left transition-colors hover:bg-primary/10 active:scale-[0.99]"
+    >
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary">
+        <Dumbbell size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-ink">{w.splitLabel}</p>
+        <p className="truncate text-xs text-ink-mute">
+          Month {w.monthIndex + 1} · {w.phase} · {w.exerciseCount} ex · {w.setCount} sets
+        </p>
+      </div>
+      <ChevronRight size={18} className="shrink-0 text-primary" />
+    </button>
   );
 }
 
