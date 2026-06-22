@@ -168,7 +168,19 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
 
   if (editing) {
     return (
-      <Sheet open onClose={onClose} title="Edit Goal">
+      <Sheet
+        open
+        onClose={onClose}
+        title="Edit Goal"
+        footer={
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setEditing(false)} className="cursor-pointer rounded-2xl surface py-3.5 font-medium text-ink-mute ring-1 ring-line active:scale-[0.98]">
+              Cancel
+            </button>
+            <button onClick={saveEdit} className="btn-primary py-3.5">Save</button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           <div>
             <label className={gLabel} htmlFor="g-title">Title</label>
@@ -187,12 +199,6 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
           <div>
             <label className={gLabel} htmlFor="g-deadline">Deadline</label>
             <input id="g-deadline" type="date" value={eDeadline} onChange={(e) => setEDeadline(e.target.value)} className={gField} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setEditing(false)} className="cursor-pointer rounded-2xl surface py-3.5 font-medium text-ink-mute ring-1 ring-line active:scale-[0.98]">
-              Cancel
-            </button>
-            <button onClick={saveEdit} className="btn-primary py-3.5">Save</button>
           </div>
         </div>
       </Sheet>

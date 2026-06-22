@@ -72,7 +72,18 @@ export default function ItemActionsSheet({
   };
 
   return (
-    <Sheet open={open} onClose={close} title={editing ? "Edit" : item.title}>
+    <Sheet
+      open={open}
+      onClose={close}
+      title={editing ? "Edit" : item.title}
+      footer={
+        editing ? (
+          <button onClick={saveEdit} className="btn-primary w-full py-3.5">
+            Save
+          </button>
+        ) : undefined
+      }
+    >
       {editing ? (
         <div className="space-y-4">
           <input
@@ -88,9 +99,6 @@ export default function ItemActionsSheet({
             placeholder="Tags (comma separated) e.g. work, urgent"
             className={inputCls}
           />
-          <button onClick={saveEdit} className="btn-primary w-full py-3.5">
-            Save
-          </button>
         </div>
       ) : (
         <div className="space-y-4">

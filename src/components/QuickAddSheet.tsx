@@ -137,7 +137,16 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
     : "Quick Add";
 
   return (
-    <Sheet open={open} onClose={close} title={sheetTitle}>
+    <Sheet
+      open={open}
+      onClose={close}
+      title={sheetTitle}
+      footer={
+        <button onClick={submit} className="btn-primary w-full py-3.5 text-base">
+          Add {isPlanItem ? taskMeta[mode as TaskType].label : MODES.find((m) => m.key === mode)?.label}
+        </button>
+      }
+    >
       {/* Mode selector — hidden when locked to a single mode */}
       {!lockMode && (
         <div className="mb-5 grid grid-cols-3 gap-2">
@@ -413,13 +422,6 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
             </div>
           </>
         )}
-
-        <button
-          onClick={submit}
-          className="btn-primary w-full py-3.5 text-base"
-        >
-          Add {isPlanItem ? taskMeta[mode as TaskType].label : MODES.find((m) => m.key === mode)?.label}
-        </button>
       </div>
     </Sheet>
   );

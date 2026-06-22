@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -8,17 +8,25 @@ interface Props {
   onClose: () => void;
   title?: string;
   children: ReactNode;
+  /**
+   * Pinned action bar (e.g. the Save button). It stays fixed at the bottom of
+   * the sheet — above the on-screen keyboard — while the body scrolls, so the
+   * primary action is never hidden.
+   */
+  footer?: ReactNode;
 }
 
-export default function Sheet({ open, onClose, title, children }: Props) {
-  // Height hidden by the on-screen keyboard, and the resulting cap for the
-  // panel. On phones `vh` does NOT shrink when the keyboard opens, so a
-  // bottom-anchored sheet pushes its footer (the Save button) behind the
-  // keyboard. We measure the real visible area with the VisualViewport API and
-  // (1) lift the sheet above the keyboard and (2) cap its height to what's
-  // actually visible, so the footer stays reachable and the body still scrolls.
+export default function Sheet({ open, onClose, title, children, footer }: Props) {
+  // The on-screen keyboard covers the bottom of a bottom-anchored sheet, and
+  // `vh` units don't shrink for it. Measure the real visible area with the
+  // VisualViewport API to (1) lift the sheet above the keyboard and (2) cap its
+  // height to the visible region, so the body scrolls and the footer stays put.
   const [kbInset, setKbInset] = useState(0);
   const [maxH, setMaxH] = useState("88dvh");
+  // Drag-to-dismiss is started only from the grab handle (dragListener=false),
+  // otherwise framer-motion's drag would swallow the body's scroll gestures and
+  // the user could never scroll down to reach the footer.
+  const dragControls = useDragControls();
 
   useEffect(() => {
     if (!open) return;
@@ -73,24 +81,49 @@ export default function Sheet({ open, onClose, title, children }: Props) {
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 320 }}
             drag="y"
+            dragControls={dragControls}
+            dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.4 }}
             onDragEnd={(_, info) => info.offset.y > 120 && onClose()}
             style={{ maxHeight: maxH }}
-            className="glass relative z-10 flex max-h-[88dvh] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-t-3xl border-x-0 border-b-0 p-5 pb-safe sm:rounded-3xl sm:border-x"
+            className="glass relative z-10 flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border-x-0 border-b-0 sm:rounded-3xl sm:border-x"
           >
-            <div className="mx-auto mb-4 h-1.5 w-10 shrink-0 rounded-full surface-3 sm:hidden" />
-            <div className="mb-4 flex shrink-0 items-center justify-between">
-              {title && <h2 className="text-lg font-semibold">{title}</h2>}
-              <button
-                onClick={onClose}
-                aria-label="Close"
-                className="ml-auto grid h-9 w-9 cursor-pointer place-items-center rounded-full surface text-ink-mute transition-colors surface-hover"
-              >
-                <X size={18} />
-              </button>
+            {/* Header — fixed; the handle is the only drag-to-dismiss target */}
+            <div className="shrink-0 px-5 pt-4">
+              <div
+                onPointerDown={(e) => dragControls.start(e)}
+                className="mx-auto mb-3 h-1.5 w-10 cursor-grab touch-none rounded-full surface-3 active:cursor-grabbing sm:hidden"
+              />
+              <div className="mb-3 flex items-center justify-between">
+                {title && <h2 className="text-lg font-semibold">{title}</h2>}
+                <button
+                  onClick={onClose}
+                  aria-label="Close"
+                  className="ml-auto grid h-9 w-9 cursor-pointer place-items-center rounded-full surface text-ink-mute transition-colors surface-hover"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
-            {children}
+
+            {/* Body — scrolls freely */}
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain px-5"
+              style={{ paddingBottom: footer ? 16 : "max(env(safe-area-inset-bottom), 24px)" }}
+            >
+              {children}
+            </div>
+
+            {/* Footer — pinned above the keyboard */}
+            {footer && (
+              <div
+                className="shrink-0 border-t border-line/60 px-5 pt-3"
+                style={{ paddingBottom: "max(env(safe-area-inset-bottom), 20px)" }}
+              >
+                {footer}
+              </div>
+            )}
           </motion.div>
         </div>
       )}
