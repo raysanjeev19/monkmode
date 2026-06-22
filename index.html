@@ -10,11 +10,64 @@
     />
     <meta name="theme-color" content="#FBF4E9" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Monk Mode" />
+
+    <!-- ===== SEO — change the domain below if you use a custom one ===== -->
+    <title>Monk Mode — Productivity, Habit, Fitness &amp; Goal Tracker App (PWA)</title>
     <meta
       name="description"
-      content="Monk Mode — personal productivity, fitness, study, and goal tracking built for consistency and focus."
+      content="Monk Mode is a free, mobile-first PWA for productivity, habits, fitness, study, and long-term goals. Track your day, build streaks, stay focused — works offline and installs to your home screen."
     />
+    <meta
+      name="keywords"
+      content="monk mode, monkmode, monk mode app, productivity app, habit tracker, goal tracking app, fitness tracker, study planner, focus app, daily planner PWA, offline productivity app"
+    />
+    <meta name="author" content="Sanjeev" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="application-name" content="Monk Mode" />
+    <link rel="canonical" href="https://monkmode.vercel.app/" />
+
+    <!-- Open Graph (WhatsApp / Facebook / LinkedIn previews) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Monk Mode" />
+    <meta property="og:url" content="https://monkmode.vercel.app/" />
+    <meta property="og:title" content="Monk Mode — Productivity, Habit, Fitness &amp; Goal Tracker" />
+    <meta
+      property="og:description"
+      content="A free mobile-first app to track productivity, habits, fitness, study and goals. Build streaks, stay focused, works offline. Add to your home screen."
+    />
+    <meta property="og:image" content="https://monkmode.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Monk Mode — Productivity, Habit & Goal Tracker" />
+    <meta
+      name="twitter:description"
+      content="Track productivity, habits, fitness, study and goals. Build streaks, stay focused, works offline."
+    />
+    <meta name="twitter:image" content="https://monkmode.vercel.app/og.png" />
+
+    <!-- Structured data: tells Google this is a free web app -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Monk Mode",
+        "url": "https://monkmode.vercel.app/",
+        "description": "A mobile-first PWA for productivity, habits, fitness, study, and long-term goal tracking. Works offline and installs to your home screen.",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "Web, iOS, Android",
+        "browserRequirements": "Requires JavaScript",
+        "author": { "@type": "Person", "name": "Sanjeev" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
@@ -31,6 +84,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>Monk Mode — Productivity, Habit, Fitness &amp; Goal Tracker</h1>
+      <p>
+        Monk Mode is a free, mobile-first app to track your productivity, habits,
+        fitness, study, and long-term goals — build streaks, stay focused, and
+        install it to your home screen. Please enable JavaScript to use the app.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

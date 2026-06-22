@@ -1,17 +1,21 @@
 import { useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import { haptic } from "../lib/ui";
-import QuickAddSheet from "./QuickAddSheet";
+import QuickAddSheet, { type AddMode } from "./QuickAddSheet";
 
 /**
  * Floating "+" quick-add button the user can drag anywhere on screen.
- * A tap (no meaningful drag) opens the Quick Add sheet.
+ * A tap (no meaningful drag) opens the Quick Add sheet — defaulting to the
+ * mode that matches the current page (e.g. a Goal on the Goals tab).
  */
 export default function DraggableFab() {
   const boundsRef = useRef<HTMLDivElement>(null);
   const movedRef = useRef(false);
   const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  const mode: AddMode = pathname.startsWith("/goals") ? "goal" : "task";
 
   return (
     <>
@@ -47,7 +51,7 @@ export default function DraggableFab() {
         </motion.button>
       </div>
 
-      <QuickAddSheet open={open} onClose={() => setOpen(false)} />
+      <QuickAddSheet open={open} initialMode={mode} lockMode={mode === "goal"} onClose={() => setOpen(false)} />
     </>
   );
 }

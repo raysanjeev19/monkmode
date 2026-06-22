@@ -18,6 +18,7 @@ const Planner = lazy(() => import("./pages/Planner"));
 const Goals = lazy(() => import("./pages/Goals"));
 const Progress = lazy(() => import("./pages/Progress"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Focus = lazy(() => import("./pages/Focus"));
 
 function PageFallback() {
   return (
@@ -62,6 +63,7 @@ function AnimatedRoutes() {
             <Route path="/goals" element={<Goals />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/focus" element={<Focus />} />
           </Routes>
         </Suspense>
       </motion.main>

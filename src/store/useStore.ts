@@ -53,11 +53,16 @@ interface State {
     note?: string;
     priority?: Priority;
     repeat?: Repeat;
+    tags?: string[];
+    subtasks?: string[];
   }) => void;
   updateItem: (id: string, patch: Partial<PlanItem>) => void;
   setItemStatus: (id: string, status: PlanItem["status"]) => void;
   bumpProgress: (id: string, delta: number) => void;
   removeItem: (id: string) => void;
+  addSubtask: (itemId: string, title: string) => void;
+  toggleSubtask: (itemId: string, subId: string) => void;
+  removeSubtask: (itemId: string, subId: string) => void;
   /** materialise recurring templates as concrete occurrences for `date` */
   ensureRecurring: (date: string) => void;
 
@@ -81,6 +86,7 @@ interface State {
 
   // ── Journal ──
   addNote: (text: string, mood?: JournalEntry["mood"]) => void;
+  removeNote: (id: string) => void;
 
   // ── Misc ──
   addWater: (ml: number) => void;
@@ -121,27 +127,38 @@ export const useStore = create<State>()(
         })),
 
       addItem: (input) =>
-        set((s) => ({
-          items: [
-            ...s.items,
-            {
-              id: uid(),
-              title: input.title.trim(),
-              type: input.type,
-              date: input.date ?? todayISO(),
-              time: input.time,
-              status: "pending",
-              note: input.note,
-              priority: input.priority,
-              repeat: input.repeat && input.repeat !== "none" ? input.repeat : undefined,
-              progress:
-                input.target && input.target > 0
-                  ? { current: 0, target: input.target, unit: input.unit ?? "" }
-                  : undefined,
-              createdAt: Date.now(),
-            },
-          ],
-        })),
+        set((s) => {
+          const tags = (input.tags ?? [])
+            .map((t) => t.trim())
+            .filter(Boolean);
+          const subtasks = (input.subtasks ?? [])
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .map((title) => ({ id: uid(), title, done: false }));
+          return {
+            items: [
+              ...s.items,
+              {
+                id: uid(),
+                title: input.title.trim(),
+                type: input.type,
+                date: input.date ?? todayISO(),
+                time: input.time,
+                status: "pending",
+                note: input.note,
+                priority: input.priority,
+                repeat: input.repeat && input.repeat !== "none" ? input.repeat : undefined,
+                tags: tags.length ? tags : undefined,
+                subtasks: subtasks.length ? subtasks : undefined,
+                progress:
+                  input.target && input.target > 0
+                    ? { current: 0, target: input.target, unit: input.unit ?? "" }
+                    : undefined,
+                createdAt: Date.now(),
+              },
+            ],
+          };
+        }),
 
       ensureRecurring: (date) =>
         set((s) => {
@@ -208,6 +225,51 @@ export const useStore = create<State>()(
 
       removeItem: (id) =>
         set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
+
+      addSubtask: (itemId, title) =>
+        set((s) => {
+          const t = title.trim();
+          if (!t) return {};
+          return {
+            items: s.items.map((i) =>
+              i.id === itemId
+                ? {
+                    ...i,
+                    subtasks: [
+                      ...(i.subtasks ?? []),
+                      { id: uid(), title: t, done: false },
+                    ],
+                  }
+                : i,
+            ),
+          };
+        }),
+
+      toggleSubtask: (itemId, subId) =>
+        set((s) => ({
+          items: s.items.map((i) => {
+            if (i.id !== itemId || !i.subtasks) return i;
+            const subtasks = i.subtasks.map((st) =>
+              st.id === subId ? { ...st, done: !st.done } : st,
+            );
+            // When every step is checked, mark the whole task done (and vice-versa).
+            const allDone = subtasks.length > 0 && subtasks.every((st) => st.done);
+            return {
+              ...i,
+              subtasks,
+              status: allDone ? "done" : i.status === "done" ? "pending" : i.status,
+            };
+          }),
+        })),
+
+      removeSubtask: (itemId, subId) =>
+        set((s) => ({
+          items: s.items.map((i) =>
+            i.id === itemId && i.subtasks
+              ? { ...i, subtasks: i.subtasks.filter((st) => st.id !== subId) }
+              : i,
+          ),
+        })),
 
       addGoal: (input) =>
         set((s) => ({
@@ -297,6 +359,9 @@ export const useStore = create<State>()(
           ],
         })),
 
+      removeNote: (id) =>
+        set((s) => ({ journal: s.journal.filter((j) => j.id !== id) })),
+
       addWater: (ml) =>
         set((s) => {
           const t = todayISO();
@@ -353,6 +418,49 @@ export const itemsForDate = (items: PlanItem[], date: string): PlanItem[] =>
       if (t !== 0) return t;
       return (rank[a.priority ?? "low"] ?? 2) - (rank[b.priority ?? "low"] ?? 2);
     });
+
+/** Completed/total checklist steps for an item (0/0 when it has none). */
+export const subtaskProgress = (item: PlanItem): { done: number; total: number } => {
+  const total = item.subtasks?.length ?? 0;
+  const done = item.subtasks?.filter((s) => s.done).length ?? 0;
+  return { done, total };
+};
+
+/** All distinct tags across items, sorted alphabetically. */
+export const allTags = (items: PlanItem[]): string[] =>
+  [...new Set(items.flatMap((i) => i.tags ?? []))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+/**
+ * Full-text-ish search across all items. Matches a free-text query against
+ * title, tags, type and note, and optionally narrows to a specific tag.
+ * Results are newest-first. An empty query + no tag returns [].
+ */
+export const searchItems = (
+  items: PlanItem[],
+  query: string,
+  tag?: string,
+): PlanItem[] => {
+  const q = query.trim().toLowerCase();
+  if (!q && !tag) return [];
+  return items
+    .filter((i) => {
+      if (tag && !(i.tags ?? []).includes(tag)) return false;
+      if (!q) return true;
+      const hay = [
+        i.title,
+        i.type,
+        i.note ?? "",
+        ...(i.tags ?? []),
+        ...(i.subtasks ?? []).map((s) => s.title),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+};
 
 export const dayCompletion = (items: PlanItem[], date: string): number => {
   const day = items.filter((i) => i.date === date && i.status !== "skipped");

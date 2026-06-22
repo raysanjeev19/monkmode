@@ -7,10 +7,6 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // Temporarily ship a self-destroying service worker so every visitor's
-      // stale PWA cache (from the earlier no-login build) is wiped on next load.
-      // Re-enable the full PWA by removing this flag once caches have cleared.
-      selfDestroying: true,
       registerType: "autoUpdate",
       includeAssets: ["logo.png"],
       manifest: {

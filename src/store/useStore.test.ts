@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { itemsForDate, dayCompletion, computeStreak, habitStreak } from "./useStore";
+import {
+  itemsForDate,
+  dayCompletion,
+  computeStreak,
+  habitStreak,
+  searchItems,
+  allTags,
+  subtaskProgress,
+} from "./useStore";
 import type { PlanItem, Habit } from "../types";
 import { todayISO, shiftISO } from "../lib/date";
 
@@ -89,5 +97,58 @@ describe("habitStreak", () => {
   it("counts the trailing run of logged days", () => {
     expect(habitStreak(habit({ [T]: true, [shiftISO(T, -1)]: true }))).toBe(2);
     expect(habitStreak(habit({}))).toBe(0);
+  });
+});
+
+describe("searchItems", () => {
+  const items = [
+    item({ title: "Run 5 KM", type: "workout", tags: ["fitness"], date: T }),
+    item({ title: "Read book", type: "task", tags: ["learning"], date: shiftISO(T, -1) }),
+    item({ title: "Office meeting", type: "task", note: "discuss fitness plan" }),
+  ];
+
+  it("returns nothing for an empty query and no tag", () => {
+    expect(searchItems(items, "")).toEqual([]);
+  });
+
+  it("matches title, note and tags case-insensitively", () => {
+    const out = searchItems(items, "fitness").map((i) => i.title);
+    expect(out).toContain("Run 5 KM"); // tag match
+    expect(out).toContain("Office meeting"); // note match
+    expect(out).not.toContain("Read book");
+  });
+
+  it("narrows to a specific tag", () => {
+    const out = searchItems(items, "", "learning").map((i) => i.title);
+    expect(out).toEqual(["Read book"]);
+  });
+
+  it("sorts results newest-date first", () => {
+    const out = searchItems(items, "", "fitness").map((i) => i.title);
+    expect(out[0]).toBe("Run 5 KM");
+  });
+});
+
+describe("allTags", () => {
+  it("returns distinct sorted tags", () => {
+    const items = [
+      item({ tags: ["work", "urgent"] }),
+      item({ tags: ["urgent", "home"] }),
+      item({}),
+    ];
+    expect(allTags(items)).toEqual(["home", "urgent", "work"]);
+  });
+});
+
+describe("subtaskProgress", () => {
+  it("counts done vs total checklist steps", () => {
+    const it1 = item({
+      subtasks: [
+        { id: "a", title: "x", done: true },
+        { id: "b", title: "y", done: false },
+      ],
+    });
+    expect(subtaskProgress(it1)).toEqual({ done: 1, total: 2 });
+    expect(subtaskProgress(item({}))).toEqual({ done: 0, total: 0 });
   });
 });

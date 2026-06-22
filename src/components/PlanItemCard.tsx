@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Check, X, Clock, Repeat as RepeatIcon } from "lucide-react";
+import { Check, X, Clock, Repeat as RepeatIcon, ListChecks } from "lucide-react";
 import { motion } from "framer-motion";
 import type { PlanItem } from "../types";
+import { subtaskProgress } from "../store/useStore";
 import { cn, taskMeta, priorityMeta, haptic } from "../lib/ui";
 import ProgressBar from "./ProgressBar";
 import ItemActionsSheet from "./ItemActionsSheet";
@@ -16,6 +17,7 @@ export default function PlanItemCard({ item, index = 0 }: { item: PlanItem; inde
   const pct = item.progress
     ? Math.round((item.progress.current / item.progress.target) * 100)
     : 0;
+  const sub = subtaskProgress(item);
 
   return (
     <>
@@ -53,12 +55,29 @@ export default function PlanItemCard({ item, index = 0 }: { item: PlanItem; inde
             )}
             <span className={M.text}>{M.label}</span>
             {(item.repeat || item.seriesId) && <RepeatIcon size={12} className="text-ink-faint" />}
+            {sub.total > 0 && (
+              <span className="flex items-center gap-1">
+                <ListChecks size={12} /> {sub.done}/{sub.total}
+              </span>
+            )}
             {item.progress && (
               <span>
                 {item.progress.current}/{item.progress.target} {item.progress.unit}
               </span>
             )}
           </div>
+          {item.tags && item.tags.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {item.tags.slice(0, 3).map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary-soft"
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
           {item.progress && (
             <ProgressBar value={pct} className="mt-2" barClass={done ? "grad-success" : "grad-primary"} />
           )}

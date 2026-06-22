@@ -1,4 +1,5 @@
-import { Flame, Droplet, Footprints, BookOpen, ListChecks, Plus, Bell } from "lucide-react";
+import { Flame, Droplet, Footprints, BookOpen, ListChecks, Plus, Timer } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useStore, itemsForDate, dayCompletion, computeStreak } from "../store/useStore";
 import { todayISO, formatLong, greeting } from "../lib/date";
 import { cn, haptic } from "../lib/ui";
@@ -66,14 +67,14 @@ export default function Home() {
         <div className="h-[56px] w-24 justify-self-center overflow-hidden">
           <img src="/logo.png" alt="MonkMode logo" className="w-24 max-w-none object-top" />
         </div>
-        <button
-          aria-label="Notifications"
+        <Link
+          to="/focus"
+          aria-label="Focus timer"
           onClick={() => haptic()}
           className="relative grid h-10 w-10 cursor-pointer place-items-center justify-self-end rounded-2xl surface surface-hover"
         >
-          <Bell size={19} className="text-ink-mute" />
-          <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-primary ring-2 ring-bg" />
-        </button>
+          <Timer size={19} className="text-primary" />
+        </Link>
       </div>
 
       {/* Greeting + streak */}

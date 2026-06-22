@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
 import { format } from "date-fns";
-import { useStore, itemsForDate, dayCompletion } from "../store/useStore";
+import {
+  useStore,
+  itemsForDate,
+  dayCompletion,
+  searchItems,
+  allTags,
+} from "../store/useStore";
 import {
   todayISO,
   weekDays,
@@ -24,6 +30,12 @@ export default function Planner() {
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState(todayISO());
   const [addOpen, setAddOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
+
+  const tags = allTags(items);
+  const searching = query.trim() !== "" || !!tagFilter;
+  const results = searchItems(items, query, tagFilter);
 
   // generate recurring occurrences for the viewed day
   useEffect(() => {
@@ -51,55 +63,134 @@ export default function Planner() {
         </button>
       </header>
 
-      {/* View switcher */}
-      <div className="glass-soft grid grid-cols-3 gap-1 rounded-2xl p-1">
-        {(["day", "week", "month"] as View[]).map((v) => (
+      {/* Search */}
+      <div className="relative">
+        <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-faint" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search tasks, tags, notes…"
+          className="w-full rounded-2xl border hairline surface py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-faint outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+        />
+        {query && (
           <button
-            key={v}
-            onClick={() => {
-              setView(v);
-              haptic();
-            }}
-            className={cn(
-              "cursor-pointer rounded-xl py-2 text-sm font-medium capitalize transition-colors",
-              view === v ? "bg-primary text-white shadow-glow-sm" : "text-ink-mute hover:text-ink",
-            )}
+            onClick={() => setQuery("")}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-ink-faint hover:text-ink"
           >
-            {v}
+            <X size={16} />
           </button>
-        ))}
+        )}
       </div>
 
-      {/* Period nav */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => shift(-1)}
-          aria-label="Previous"
-          className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl surface surface-hover"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <p className="text-sm font-medium">
-          {view === "month" ? monthLabel(cursor) : view === "week" ? `Week of ${format(fromISO(weekDays(cursor)[0]), "d MMM")}` : formatLong(cursor)}
-        </p>
-        <button
-          onClick={() => shift(1)}
-          aria-label="Next"
-          className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl surface surface-hover"
-        >
-          <ChevronRight size={20} />
-        </button>
-      </div>
-
-      {view === "day" && <DayView date={cursor} items={items} />}
-      {view === "week" && (
-        <WeekView cursor={cursor} selected={cursor} onSelect={setCursor} items={items} />
+      {/* Tag filter chips */}
+      {tags.length > 0 && (
+        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+          {tags.map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setTagFilter((cur) => (cur === t ? undefined : t));
+                haptic();
+              }}
+              className={cn(
+                "shrink-0 cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                tagFilter === t
+                  ? "bg-primary text-white shadow-glow-sm"
+                  : "surface text-ink-mute surface-hover",
+              )}
+            >
+              #{t}
+            </button>
+          ))}
+        </div>
       )}
-      {view === "month" && (
-        <MonthView cursor={cursor} selected={cursor} onSelect={setCursor} items={items} />
+
+      {searching ? (
+        <SearchResults results={results} count={results.length} />
+      ) : (
+        <>
+          {/* View switcher */}
+          <div className="glass-soft grid grid-cols-3 gap-1 rounded-2xl p-1">
+            {(["day", "week", "month"] as View[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => {
+                  setView(v);
+                  haptic();
+                }}
+                className={cn(
+                  "cursor-pointer rounded-xl py-2 text-sm font-medium capitalize transition-colors",
+                  view === v ? "bg-primary text-white shadow-glow-sm" : "text-ink-mute hover:text-ink",
+                )}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+
+          {/* Period nav */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => shift(-1)}
+              aria-label="Previous"
+              className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl surface surface-hover"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <p className="text-sm font-medium">
+              {view === "month" ? monthLabel(cursor) : view === "week" ? `Week of ${format(fromISO(weekDays(cursor)[0]), "d MMM")}` : formatLong(cursor)}
+            </p>
+            <button
+              onClick={() => shift(1)}
+              aria-label="Next"
+              className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl surface surface-hover"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          {view === "day" && <DayView date={cursor} items={items} />}
+          {view === "week" && (
+            <WeekView cursor={cursor} selected={cursor} onSelect={setCursor} items={items} />
+          )}
+          {view === "month" && (
+            <MonthView cursor={cursor} selected={cursor} onSelect={setCursor} items={items} />
+          )}
+        </>
       )}
 
       <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} date={cursor} />
+    </div>
+  );
+}
+
+function SearchResults({
+  results,
+  count,
+}: {
+  results: ReturnType<typeof useStore.getState>["items"];
+  count: number;
+}) {
+  if (count === 0)
+    return (
+      <GlassCard className="py-10 text-center text-ink-mute">
+        No matching tasks.
+      </GlassCard>
+    );
+  return (
+    <div className="space-y-2.5">
+      <p className="px-1 text-xs text-ink-mute">
+        {count} result{count === 1 ? "" : "s"}
+      </p>
+      {results.map((item, i) => (
+        <div key={item.id}>
+          <p className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+            {formatLong(item.date)}
+          </p>
+          <PlanItemCard item={item} index={i} />
+        </div>
+      ))}
     </div>
   );
 }

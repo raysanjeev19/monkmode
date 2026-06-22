@@ -59,7 +59,7 @@ export default function Goals() {
       )}
 
       <GoalSheet goal={liveActive} onClose={() => setActive(null)} />
-      <QuickAddSheet open={addOpen} initialMode="goal" onClose={() => setAddOpen(false)} />
+      <QuickAddSheet open={addOpen} initialMode="goal" lockMode onClose={() => setAddOpen(false)} />
     </div>
   );
 }

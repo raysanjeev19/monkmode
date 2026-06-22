@@ -3,7 +3,6 @@ import {
   Moon,
   Sun,
   Download,
-  RotateCcw,
   Trash2,
   Plus,
   Check,
@@ -17,10 +16,16 @@ import {
 import { useStore, habitStreak } from "../store/useStore";
 import { cn, haptic } from "../lib/ui";
 import { todayISO, formatLong } from "../lib/date";
+import {
+  requestNotifyPermission,
+  notifySupported,
+  showNotification,
+} from "../lib/notify";
 import { pushState, pullState } from "../lib/sync";
 import { auth, isFirebaseConfigured } from "../lib/firebase";
 import { logout } from "../lib/auth";
 import GlassCard from "../components/GlassCard";
+import QuickAddSheet from "../components/QuickAddSheet";
 
 interface BIPEvent extends Event {
   prompt: () => Promise<void>;
@@ -43,21 +48,33 @@ export default function Profile() {
     addHabit,
     toggleHabit,
     removeHabit,
+    removeNote,
     exportData,
     resetData,
   } = useStore();
 
   const [newHabit, setNewHabit] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
   const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null);
   const [syncMsg, setSyncMsg] = useState<string>("");
   const today = todayISO();
 
   const toggleReminders = async () => {
     if (remindersEnabled) return setRemindersEnabled(false);
-    if (typeof Notification === "undefined") return alert("Notifications not supported on this device.");
-    const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    if (!notifySupported()) return alert("Notifications not supported on this device.");
+    const perm = await requestNotifyPermission();
     setRemindersEnabled(perm === "granted");
     if (perm !== "granted") alert("Allow notifications to get reminders.");
+  };
+
+  const testNotification = async () => {
+    haptic(12);
+    if (!notifySupported()) return alert("Notifications not supported on this device.");
+    const perm = await requestNotifyPermission();
+    if (perm !== "granted") return alert("Allow notifications first.");
+    await showNotification("MonkMode · Test", {
+      body: "Notifications are working 🎉 You'll be reminded when a task is due.",
+    });
   };
 
   const toggleSync = async () => {
@@ -167,6 +184,7 @@ export default function Profile() {
           />
           <Row onClick={syncNow} icon={RefreshCw} label="Sync now" tint="text-success" />
           {syncMsg && <p className="px-2 text-xs text-ink-mute">{syncMsg}</p>}
+          <Row onClick={testNotification} icon={BellRing} label="Send test notification" tint="text-primary-soft" />
           <Row onClick={doLogout} icon={LogOut} label="Log out" tint="text-danger" />
         </GlassCard>
       )}
@@ -270,22 +288,47 @@ export default function Profile() {
       </GlassCard>
 
       {/* Journal */}
-      {journal.length > 0 && (
-        <GlassCard className="p-4" index={3}>
-          <h2 className="mb-3 font-semibold">Journal</h2>
+      <GlassCard className="p-4" index={3}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold">Journal</h2>
+          <button
+            onClick={() => {
+              setNoteOpen(true);
+              haptic();
+            }}
+            aria-label="Add note"
+            className="grid h-9 w-9 cursor-pointer place-items-center rounded-xl bg-primary text-white shadow-glow-sm active:scale-95"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+        {journal.length === 0 ? (
+          <p className="py-4 text-center text-sm text-ink-mute">
+            No notes yet. Tap + to write one.
+          </p>
+        ) : (
           <div className="space-y-2">
             {journal.slice(0, 5).map((j) => (
               <div key={j.id} className="rounded-2xl surface px-4 py-3">
                 <div className="mb-1 flex items-center justify-between text-xs text-ink-mute">
                   <span>{formatLong(j.date)}</span>
-                  <span>{["😞", "😕", "😐", "🙂", "😄"][j.mood - 1]}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{["😞", "😕", "😐", "🙂", "😄"][j.mood - 1]}</span>
+                    <button
+                      onClick={() => removeNote(j.id)}
+                      aria-label="Delete note"
+                      className="cursor-pointer text-ink-faint hover:text-danger"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm">{j.text}</p>
               </div>
             ))}
           </div>
-        </GlassCard>
-      )}
+        )}
+      </GlassCard>
 
       {/* Data */}
       <GlassCard className="space-y-2 p-4" index={4}>
@@ -294,17 +337,11 @@ export default function Profile() {
           <Row onClick={doInstall} icon={Share2} label="Install app" tint="text-primary-soft" />
         )}
         <Row onClick={doExport} icon={Download} label="Export data (JSON)" tint="text-sky-400" />
-        <Row
-          onClick={() => {
-            if (confirm("Reset all data to the starter demo?")) resetData();
-          }}
-          icon={RotateCcw}
-          label="Reset to demo data"
-          tint="text-warning"
-        />
       </GlassCard>
 
       <p className="pb-2 text-center text-xs text-ink-faint">MonkMode · v1.0 · works offline</p>
+
+      <QuickAddSheet open={noteOpen} initialMode="note" lockMode onClose={() => setNoteOpen(false)} />
     </div>
   );
 }

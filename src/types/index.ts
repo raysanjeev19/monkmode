@@ -7,6 +7,13 @@ export type TaskStatus = "pending" | "done" | "skipped";
 export type Priority = "low" | "med" | "high";
 export type Repeat = "none" | "daily" | "weekly";
 
+/** A checklist step inside a plan item. */
+export interface SubTask {
+  id: ID;
+  title: string;
+  done: boolean;
+}
+
 export interface PlanItem {
   id: ID;
   title: string;
@@ -23,6 +30,10 @@ export interface PlanItem {
   repeat?: Repeat;
   /** set on generated occurrences — points at the template item id */
   seriesId?: ID;
+  /** free-form labels for filtering/search, e.g. ["work", "urgent"] */
+  tags?: string[];
+  /** checklist steps */
+  subtasks?: SubTask[];
   note?: string;
   createdAt: number;
 }

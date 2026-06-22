@@ -1,15 +1,26 @@
 import { useState } from "react";
-import { Check, X, Minus, Plus, Pencil, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  Check,
+  X,
+  Minus,
+  Plus,
+  Pencil,
+  Trash2,
+  Timer,
+  Square,
+  CheckSquare,
+} from "lucide-react";
 import type { PlanItem } from "../types";
-import { useStore } from "../store/useStore";
-import { haptic } from "../lib/ui";
+import { useStore, subtaskProgress } from "../store/useStore";
+import { cn, haptic } from "../lib/ui";
 import Sheet from "./Sheet";
 import ProgressBar from "./ProgressBar";
 
 const inputCls =
   "w-full rounded-2xl border hairline surface px-4 py-3 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/30";
 
-/** Shared bottom-sheet of actions for a plan item (complete / skip / edit / delete / progress). */
+/** Shared bottom-sheet of actions for a plan item (complete / skip / edit / delete / progress / subtasks). */
 export default function ItemActionsSheet({
   item,
   open,
@@ -19,16 +30,28 @@ export default function ItemActionsSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const { setItemStatus, bumpProgress, updateItem, removeItem } = useStore();
+  const {
+    setItemStatus,
+    bumpProgress,
+    updateItem,
+    removeItem,
+    addSubtask,
+    toggleSubtask,
+    removeSubtask,
+  } = useStore();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(item.title);
   const [time, setTime] = useState(item.time ?? "");
+  const [tags, setTags] = useState((item.tags ?? []).join(", "));
+  const [newSub, setNewSub] = useState("");
 
   const done = item.status === "done";
   const skipped = item.status === "skipped";
   const pct = item.progress
     ? Math.round((item.progress.current / item.progress.target) * 100)
     : 0;
+  const sub = subtaskProgress(item);
 
   const close = () => {
     setEditing(false);
@@ -36,7 +59,15 @@ export default function ItemActionsSheet({
   };
 
   const saveEdit = () => {
-    updateItem(item.id, { title: title.trim() || item.title, time: time || undefined });
+    const cleanedTags = tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    updateItem(item.id, {
+      title: title.trim() || item.title,
+      time: time || undefined,
+      tags: cleanedTags.length ? cleanedTags : undefined,
+    });
     setEditing(false);
   };
 
@@ -44,14 +75,38 @@ export default function ItemActionsSheet({
     <Sheet open={open} onClose={close} title={editing ? "Edit" : item.title}>
       {editing ? (
         <div className="space-y-4">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            className={inputCls}
+          />
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+          <input
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="Tags (comma separated) e.g. work, urgent"
+            className={inputCls}
+          />
           <button onClick={saveEdit} className="btn-primary w-full py-3.5">
             Save
           </button>
         </div>
       ) : (
         <div className="space-y-4">
+          {item.tags && item.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {item.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-primary/12 px-2.5 py-1 text-xs font-medium text-primary-soft ring-1 ring-primary/20"
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+
           {item.progress && (
             <div className="glass-soft rounded-2xl p-4">
               <div className="mb-2 flex items-center justify-between text-sm">
@@ -80,6 +135,90 @@ export default function ItemActionsSheet({
               </div>
             </div>
           )}
+
+          {/* Checklist / subtasks */}
+          <div className="glass-soft rounded-2xl p-4">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-ink-mute">Checklist</span>
+              {sub.total > 0 && (
+                <span className="font-semibold">
+                  {sub.done}/{sub.total}
+                </span>
+              )}
+            </div>
+            {item.subtasks && item.subtasks.length > 0 && (
+              <div className="mb-2 space-y-1">
+                {item.subtasks.map((st) => (
+                  <div key={st.id} className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => {
+                        toggleSubtask(item.id, st.id);
+                        haptic();
+                      }}
+                      aria-label={`Toggle ${st.title}`}
+                      className={cn(
+                        "shrink-0 cursor-pointer",
+                        st.done ? "text-success" : "text-ink-faint",
+                      )}
+                    >
+                      {st.done ? <CheckSquare size={20} /> : <Square size={20} />}
+                    </button>
+                    <span
+                      className={cn(
+                        "flex-1 text-sm",
+                        st.done && "text-ink-mute line-through",
+                      )}
+                    >
+                      {st.title}
+                    </span>
+                    <button
+                      onClick={() => removeSubtask(item.id, st.id)}
+                      aria-label="Remove step"
+                      className="shrink-0 cursor-pointer text-ink-faint hover:text-danger"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newSub.trim()) return;
+                addSubtask(item.id, newSub);
+                setNewSub("");
+                haptic();
+              }}
+            >
+              <input
+                value={newSub}
+                onChange={(e) => setNewSub(e.target.value)}
+                placeholder="Add a step…"
+                className="flex-1 rounded-xl border hairline surface px-3 py-2 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
+              />
+              <button
+                type="submit"
+                aria-label="Add step"
+                className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-xl bg-primary text-white active:scale-95"
+              >
+                <Plus size={18} />
+              </button>
+            </form>
+          </div>
+
+          {/* Focus on this task */}
+          <button
+            onClick={() => {
+              haptic(12);
+              close();
+              navigate(`/focus?task=${encodeURIComponent(item.title)}`);
+            }}
+            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary/12 py-3.5 font-medium text-primary-soft ring-1 ring-primary/25 active:scale-[0.98]"
+          >
+            <Timer size={18} /> Focus on this
+          </button>
 
           <div className="grid grid-cols-2 gap-3">
             <button
