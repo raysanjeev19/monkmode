@@ -8,20 +8,13 @@ import {
   Check,
   Flame,
   Share2,
-  Cloud,
   BellRing,
-  RefreshCw,
   LogOut,
 } from "lucide-react";
 import { useStore, habitStreak } from "../store/useStore";
 import { cn, haptic } from "../lib/ui";
 import { todayISO, formatLong } from "../lib/date";
-import {
-  requestNotifyPermission,
-  notifySupported,
-  showNotification,
-} from "../lib/notify";
-import { pushState, pullState } from "../lib/sync";
+import { requestNotifyPermission, notifySupported } from "../lib/notify";
 import { auth, isFirebaseConfigured } from "../lib/firebase";
 import { logout } from "../lib/auth";
 import GlassCard from "../components/GlassCard";
@@ -40,9 +33,7 @@ export default function Profile() {
     profile,
     habits,
     journal,
-    syncEnabled,
     remindersEnabled,
-    setSyncEnabled,
     setRemindersEnabled,
     updateProfile,
     addHabit,
@@ -56,7 +47,6 @@ export default function Profile() {
   const [newHabit, setNewHabit] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
   const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null);
-  const [syncMsg, setSyncMsg] = useState<string>("");
   const today = todayISO();
 
   const toggleReminders = async () => {
@@ -65,39 +55,6 @@ export default function Profile() {
     const perm = await requestNotifyPermission();
     setRemindersEnabled(perm === "granted");
     if (perm !== "granted") alert("Allow notifications to get reminders.");
-  };
-
-  const testNotification = async () => {
-    haptic(12);
-    if (!notifySupported()) return alert("Notifications not supported on this device.");
-    const perm = await requestNotifyPermission();
-    if (perm !== "granted") return alert("Allow notifications first.");
-    await showNotification("MonkMode · Test", {
-      body: "Notifications are working 🎉 You'll be reminded when a task is due.",
-    });
-  };
-
-  const toggleSync = async () => {
-    if (syncEnabled) return setSyncEnabled(false);
-    setSyncEnabled(true);
-    setSyncMsg("Connecting…");
-    try {
-      const had = await pullState();
-      setSyncMsg(had ? "Synced from cloud ✓" : "Cloud sync on ✓");
-    } catch {
-      setSyncMsg("Sign in to enable cloud sync.");
-    }
-  };
-
-  const syncNow = async () => {
-    setSyncMsg("Syncing…");
-    haptic(12);
-    try {
-      await pushState();
-      setSyncMsg("Backed up to cloud ✓");
-    } catch {
-      setSyncMsg("Sign in to back up your data.");
-    }
   };
 
   const doLogout = async () => {
@@ -164,27 +121,17 @@ export default function Profile() {
         </div>
       </header>
 
-      {/* Account & Sync */}
+      {/* Account */}
       {isFirebaseConfigured && (
         <GlassCard className="space-y-2 p-4" index={0}>
-          <h2 className="mb-1 font-semibold">Account &amp; Sync</h2>
-          <ToggleRow
-            icon={Cloud}
-            title="Cloud sync"
-            sub="Keep your data on all devices"
-            on={syncEnabled}
-            onClick={toggleSync}
-          />
+          <h2 className="mb-1 font-semibold">Account</h2>
           <ToggleRow
             icon={BellRing}
             title="Reminders"
-            sub="Notify me when a task is due"
+            sub="Get a real notification when a timed task is due"
             on={remindersEnabled}
             onClick={toggleReminders}
           />
-          <Row onClick={syncNow} icon={RefreshCw} label="Sync now" tint="text-success" />
-          {syncMsg && <p className="px-2 text-xs text-ink-mute">{syncMsg}</p>}
-          <Row onClick={testNotification} icon={BellRing} label="Send test notification" tint="text-primary-soft" />
           <Row onClick={doLogout} icon={LogOut} label="Log out" tint="text-danger" />
         </GlassCard>
       )}
@@ -368,7 +315,7 @@ function ToggleRow({
   on,
   onClick,
 }: {
-  icon: typeof Cloud;
+  icon: typeof BellRing;
   title: string;
   sub: string;
   on: boolean;
