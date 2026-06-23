@@ -95,12 +95,12 @@ export default function Sheet({ open, onClose, title, children, footer }: Props)
                 onPointerDown={(e) => dragControls.start(e)}
                 className="mx-auto mb-3 h-1.5 w-10 cursor-grab touch-none rounded-full surface-3 active:cursor-grabbing sm:hidden"
               />
-              <div className="mb-3 flex items-center justify-between">
-                {title && <h2 className="text-lg font-semibold">{title}</h2>}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                {title && <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h2>}
                 <button
                   onClick={onClose}
                   aria-label="Close"
-                  className="ml-auto grid h-9 w-9 cursor-pointer place-items-center rounded-full surface text-ink-mute transition-colors surface-hover"
+                  className="ml-auto grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full surface text-ink-mute transition-colors surface-hover"
                 >
                   <X size={18} />
                 </button>

@@ -117,7 +117,7 @@ export default function Login() {
           >
             <span className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
             <span className="grid h-16 w-16 place-items-center rounded-2xl border hairline bg-card/60 backdrop-blur-md ring-1 ring-primary/20">
-              <img src="/logo-icon.png" alt="MonkMode" className="h-11 w-11 object-contain drop-shadow-[0_6px_16px_rgba(237,125,28,0.45)]" />
+              <img src="/logo.png" alt="MonkMode" className="h-12 w-12 object-contain drop-shadow-[0_6px_16px_rgba(225,29,42,0.4)]" />
             </span>
           </motion.div>
           <span className="font-heading text-xl font-extrabold tracking-tight">

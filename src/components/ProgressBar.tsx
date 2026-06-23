@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "../lib/ui";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
 }
 
 export default function ProgressBar({ value, className, barClass = "grad-primary" }: Props) {
+  const reduce = useReducedMotion();
   const clamped = Math.max(0, Math.min(100, value));
   return (
     <div
@@ -18,9 +19,9 @@ export default function ProgressBar({ value, className, barClass = "grad-primary
     >
       <motion.div
         className={cn("h-full rounded-full shadow-glow-sm", barClass)}
-        initial={{ width: 0 }}
+        initial={reduce ? false : { width: 0 }}
         animate={{ width: `${clamped}%` }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: reduce ? 0 : 0.8, ease: "easeOut" }}
       />
     </div>
   );

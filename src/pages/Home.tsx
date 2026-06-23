@@ -1,6 +1,6 @@
-import { Flame, Droplet, Footprints, BookOpen, ListChecks, Plus, Timer } from "lucide-react";
+import { Flame, Droplet, Footprints, BookOpen, ListChecks, Plus, Minus, Timer } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useStore, itemsForDate, dayCompletion, computeStreak } from "../store/useStore";
+import { useStore, itemsForDate, dayCompletion, computeStreak, safePct } from "../store/useStore";
 import { todayISO, formatLong, greeting } from "../lib/date";
 import { cn, haptic } from "../lib/ui";
 import GlassCard from "../components/GlassCard";
@@ -30,7 +30,7 @@ export default function Home() {
   const run = sum("workout");
   const study = sum("study");
   const waterMl = water[today] ?? 0;
-  const waterPct = Math.round((waterMl / profile.waterTargetMl) * 100);
+  const waterPct = safePct(waterMl, profile.waterTargetMl);
 
   const cards = [
     {
@@ -59,14 +59,15 @@ export default function Home() {
   return (
     <div className="space-y-3">
       {/* Brand bar */}
-      <div className="grid grid-cols-3 items-center pt-1">
+      <div className="grid grid-cols-3 items-center">
         <span className="justify-self-start font-heading text-xl font-extrabold tracking-tight">
           Monk<span className="text-primary">Mode</span>
         </span>
-        {/* crop the wordmark out of the logo image — show only the monk */}
-        <div className="h-[56px] w-24 justify-self-center overflow-hidden">
-          <img src="/logo.png" alt="MonkMode logo" className="w-24 max-w-none object-top" />
-        </div>
+        <img
+          src="/logo.png"
+          alt="MonkMode logo"
+          className="h-14 w-14 justify-self-center object-contain drop-shadow-[0_4px_12px_rgba(225,29,42,0.3)]"
+        />
         <Link
           to="/focus"
           aria-label="Focus timer"
@@ -161,15 +162,29 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              addWater(250);
-              haptic(12);
-            }}
-            className="flex cursor-pointer items-center gap-1 rounded-2xl bg-sky-500/12 px-3 py-2 text-sm font-semibold text-sky-600 ring-1 ring-sky-500/25 active:scale-[0.97]"
-          >
-            <Plus size={16} /> 250ml
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                addWater(-250);
+                haptic(8);
+              }}
+              aria-label="Remove 250ml"
+              disabled={waterMl === 0}
+              className="grid h-9 w-9 cursor-pointer place-items-center rounded-2xl bg-sky-500/12 text-sky-600 ring-1 ring-sky-500/25 active:scale-[0.97] disabled:opacity-40"
+            >
+              <Minus size={16} />
+            </button>
+            <button
+              onClick={() => {
+                addWater(250);
+                haptic(12);
+              }}
+              aria-label="Add 250ml"
+              className="flex cursor-pointer items-center gap-1 rounded-2xl bg-sky-500/12 px-3 py-2 text-sm font-semibold text-sky-600 ring-1 ring-sky-500/25 active:scale-[0.97]"
+            >
+              <Plus size={16} /> 250ml
+            </button>
+          </div>
         </div>
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full surface-2">
           <div

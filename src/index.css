@@ -18,8 +18,8 @@
     --card: 255 252 246; /* soft warm white */
     --card-soft: 250 243 232;
     --ink: 42 32 24; /* warm near-black */
-    --ink-mute: 124 111 98;
-    --ink-faint: 168 154 137;
+    --ink-mute: 110 98 86; /* darkened for AA contrast on cream */
+    --ink-faint: 138 124 108; /* darkened for AA contrast on cream */
 
     --overlay: 120 86 46; /* warm brown — drives secondary surfaces */
     --line: 120 86 46;
@@ -50,6 +50,13 @@
 
   * {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Visible keyboard focus ring (pointer taps stay clean via :focus-visible). */
+  :where(a, button, input, textarea, select, [role="switch"], [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--primary));
+    outline-offset: 2px;
+    border-radius: 8px;
   }
 
   html,
@@ -113,6 +120,18 @@
     box-shadow:
       0 12px 34px rgba(0, 0, 0, 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  /* Bottom navigation bar: opaque themed surface, subtly darker toward the
+     bottom (same warm palette) so the 5-button bar reads as distinct — with a
+     transparent TOP so it blends into the page with no hard seam/line. */
+  .bottom-nav {
+    background-color: rgb(var(--bg));
+    background-image: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--overlay) / 0.09)
+    );
   }
 
   .glass-soft {

@@ -10,7 +10,7 @@ const label = "mb-1.5 block text-sm font-medium text-ink-mute";
 
 export default function Onboarding() {
   const { profile, completeOnboarding } = useStore();
-  const [name, setName] = useState(profile.name === "Sanjay" ? "" : profile.name);
+  const [name, setName] = useState(profile.name);
   const [weightKg, setWeight] = useState(String(profile.weightKg || ""));
   const [heightCm, setHeight] = useState(String(profile.heightCm || ""));
   const [targetWeightKg, setTarget] = useState(String(profile.targetWeightKg || ""));
@@ -37,7 +37,7 @@ export default function Onboarding() {
         className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-8"
       >
         <div className="mb-6 text-center">
-          <img src="/logo.png" alt="MonkMode" className="mx-auto h-24 w-24 object-contain" />
+          <img src="/logo.png" alt="MonkMode" className="mx-auto h-28 w-28 object-contain" />
           <h1 className="font-heading text-2xl font-extrabold tracking-tight">
             Welcome to Monk<span className="text-primary">Mode</span>
           </h1>

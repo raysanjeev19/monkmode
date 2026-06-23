@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 interface Props {
   /** 0–100 */
@@ -18,6 +18,7 @@ export default function ProgressRing({
   trackColor = "rgba(255,255,255,0.08)",
   children,
 }: Props) {
+  const reduce = useReducedMotion();
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const clamped = Math.max(0, Math.min(100, value));
@@ -48,9 +49,9 @@ export default function ProgressRing({
           fill="none"
           strokeLinecap="round"
           strokeDasharray={c}
-          initial={{ strokeDashoffset: c }}
+          initial={reduce ? false : { strokeDashoffset: c }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1, ease: "easeOut" }}
+          transition={{ duration: reduce ? 0 : 1, ease: "easeOut" }}
           style={{ filter: `drop-shadow(0 0 7px ${glow})` }}
         />
       </svg>

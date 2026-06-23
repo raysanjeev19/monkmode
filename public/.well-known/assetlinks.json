@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.monkmode.app",
+      "sha256_cert_fingerprints": [
+        "20:99:07:9B:9C:0E:3A:2F:06:B6:1E:E0:B0:CC:88:E6:59:91:78:5F:66:1F:87:85:FA:79:2A:D3:A5:92:46:B1"
+      ]
+    }
+  }
+]

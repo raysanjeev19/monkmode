@@ -54,6 +54,7 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
   const [tags, setTags] = useState("");
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [subDraft, setSubDraft] = useState("");
+  const [error, setError] = useState("");
 
   const reset = () => {
     setTitle("");
@@ -67,6 +68,7 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
     setTags("");
     setSubtasks([]);
     setSubDraft("");
+    setError("");
   };
 
   // Reset the form when the sheet OPENS (not on close) so the content stays
@@ -94,10 +96,11 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
   const submit = () => {
     const t = title.trim();
     if (mode === "note") {
-      if (!t) return;
+      if (!t) return setError("Write something first.");
       addNote(t, mood);
     } else if (mode === "goal") {
-      if (!t || !target) return;
+      if (!t) return setError("Give your goal a title.");
+      if (!(Number(target) > 0)) return setError("Set a target greater than 0.");
       addGoal({
         title: t,
         category,
@@ -106,10 +109,10 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
         deadline: deadline || undefined,
       });
     } else if (mode === "habit") {
-      if (!t) return;
+      if (!t) return setError("Give your habit a name.");
       addHabit(t);
     } else {
-      if (!t) return;
+      if (!t) return setError("Give your task a title.");
       addItem({
         title: t,
         type: mode as TaskType,
@@ -171,6 +174,11 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
       )}
 
       <div className="space-y-4">
+        {error && (
+          <p role="alert" className="rounded-xl bg-danger/12 px-3.5 py-2.5 text-sm font-medium text-danger">
+            {error}
+          </p>
+        )}
         {mode !== "note" && (
           <div>
             <label className={labelCls} htmlFor="qa-title">
@@ -180,7 +188,10 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
               id="qa-title"
               autoFocus
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (error) setError("");
+              }}
               placeholder={
                 mode === "goal"
                   ? "e.g. Lose 15 KG"
@@ -325,8 +336,12 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
                 id="qa-target"
                 type="number"
                 inputMode="numeric"
+                min={mode === "goal" ? 1 : 0}
                 value={target}
-                onChange={(e) => setTarget(e.target.value)}
+                onChange={(e) => {
+                  setTarget(e.target.value);
+                  if (error) setError("");
+                }}
                 placeholder={mode === "study" ? "120" : "5"}
                 className={inputCls}
               />
@@ -414,7 +429,10 @@ export default function QuickAddSheet({ open, onClose, initialMode = "task", loc
                 id="qa-note"
                 autoFocus
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (error) setError("");
+                }}
                 rows={4}
                 placeholder="What happened today…"
                 className={cn(inputCls, "resize-none")}

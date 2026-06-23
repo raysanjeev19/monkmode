@@ -34,8 +34,8 @@ function Tab({ to, label, icon: Icon, end }: { to: string; label: string; icon: 
 
 export default function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40">
-      <div className="glass flex items-end justify-around rounded-b-none rounded-t-[28px] border-x-0 border-b-0 px-2 pt-2 pb-safe">
+    <nav className="fixed inset-x-0 bottom-0 z-40 bottom-nav">
+      <div className="flex items-end justify-around px-5 pt-2 pb-[max(env(safe-area-inset-bottom),0.125rem)]">
         {LEFT.map((t) => (
           <Tab key={t.to} {...t} />
         ))}

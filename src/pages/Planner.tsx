@@ -29,7 +29,7 @@ import { resolveWorkout, type WorkoutPlan } from "../lib/workoutPlan";
 type View = "day" | "week" | "month";
 
 export default function Planner() {
-  const { items, ensureRecurring } = useStore();
+  const { items, ensureRecurring, ensureRecurringRange } = useStore();
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState(todayISO());
   const [addOpen, setAddOpen] = useState(false);
@@ -40,10 +40,13 @@ export default function Planner() {
   const searching = query.trim() !== "" || !!tagFilter;
   const results = searchItems(items, query, tagFilter);
 
-  // generate recurring occurrences for the viewed day
+  // Materialise recurring occurrences for everything currently visible, so the
+  // week/month overviews show recurring tasks without having to tap each day.
   useEffect(() => {
-    ensureRecurring(cursor);
-  }, [cursor, ensureRecurring]);
+    if (view === "week") ensureRecurringRange(weekDays(cursor));
+    else if (view === "month") ensureRecurringRange(monthGrid(cursor));
+    else ensureRecurring(cursor);
+  }, [cursor, view, ensureRecurring, ensureRecurringRange]);
 
   const shift = (n: number) => {
     const step = view === "month" ? n * 30 : view === "week" ? n * 7 : n;
@@ -75,10 +78,13 @@ export default function Planner() {
           placeholder="Search tasks, tags, notes…"
           className="w-full rounded-2xl border hairline surface py-2.5 pl-10 pr-10 text-sm text-ink placeholder:text-ink-faint outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
         />
-        {query && (
+        {searching && (
           <button
-            onClick={() => setQuery("")}
-            aria-label="Clear search"
+            onClick={() => {
+              setQuery("");
+              setTagFilter(undefined);
+            }}
+            aria-label="Clear search and filters"
             className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-ink-faint hover:text-ink"
           >
             <X size={16} />
@@ -186,14 +192,20 @@ function SearchResults({
       <p className="px-1 text-xs text-ink-mute">
         {count} result{count === 1 ? "" : "s"}
       </p>
-      {results.map((item, i) => (
-        <div key={item.id}>
-          <p className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
-            {formatLong(item.date)}
-          </p>
-          <PlanItemCard item={item} index={i} />
-        </div>
-      ))}
+      {results.map((item, i) => {
+        // Only print a date header when the date changes from the previous result.
+        const showHeader = i === 0 || results[i - 1].date !== item.date;
+        return (
+          <div key={item.id}>
+            {showHeader && (
+              <p className="mb-1 mt-2 px-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint first:mt-0">
+                {formatLong(item.date)}
+              </p>
+            )}
+            <PlanItemCard item={item} index={i} />
+          </div>
+        );
+      })}
     </div>
   );
 }

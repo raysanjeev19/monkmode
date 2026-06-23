@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Plus, Minus, Trash2, Pencil, CalendarClock, CheckCircle2, Circle } from "lucide-react";
+import { Plus, Minus, Trash2, Pencil, CalendarClock, CheckCircle2, Circle, X } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
-import { useStore } from "../store/useStore";
+import { useStore, safePct } from "../store/useStore";
 import { categoryMeta, cn, haptic } from "../lib/ui";
 import type { Goal, GoalCategory } from "../types";
 import { fromISO } from "../lib/date";
@@ -89,7 +89,7 @@ function deadlineLabel(deadline?: string): string | null {
 function GoalCard({ goal, index, onOpen }: { goal: Goal; index: number; onOpen: () => void }) {
   const M = categoryMeta[goal.category];
   const Icon = M.icon;
-  const pct = Math.round((goal.current / goal.target) * 100);
+  const pct = safePct(goal.current, goal.target);
   const dl = deadlineLabel(goal.deadline);
   const doneMs = goal.milestones.filter((m) => m.done).length;
 
@@ -133,20 +133,23 @@ const gField =
 const gLabel = "mb-1.5 block text-sm font-medium text-ink-mute";
 
 function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
-  const { bumpGoal, toggleMilestone, removeGoal, updateGoal } = useStore();
+  const { bumpGoal, addMilestone, toggleMilestone, removeMilestone, removeGoal, updateGoal } =
+    useStore();
   const [editing, setEditing] = useState(false);
   const [eTitle, setETitle] = useState("");
   const [eTarget, setETarget] = useState("");
   const [eUnit, setEUnit] = useState("");
   const [eDeadline, setEDeadline] = useState("");
+  const [msDraft, setMsDraft] = useState("");
 
   useEffect(() => {
     setEditing(false);
+    setMsDraft("");
   }, [goal?.id]);
 
   if (!goal) return null;
   const M = categoryMeta[goal.category];
-  const pct = Math.round((goal.current / goal.target) * 100);
+  const pct = safePct(goal.current, goal.target);
 
   const openEdit = () => {
     setETitle(goal.title);
@@ -163,6 +166,12 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
       deadline: eDeadline || undefined,
     });
     setEditing(false);
+    haptic();
+  };
+  const addMs = () => {
+    if (!msDraft.trim()) return;
+    addMilestone(goal.id, msDraft);
+    setMsDraft("");
     haptic();
   };
 
@@ -200,6 +209,50 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
             <label className={gLabel} htmlFor="g-deadline">Deadline</label>
             <input id="g-deadline" type="date" value={eDeadline} onChange={(e) => setEDeadline(e.target.value)} className={gField} />
           </div>
+
+          {/* Milestones editor */}
+          <div>
+            <span className={gLabel}>Milestones</span>
+            {goal.milestones.length > 0 && (
+              <div className="mb-2 space-y-1.5">
+                {goal.milestones.map((m) => (
+                  <div key={m.id} className="flex items-center gap-2 rounded-xl surface px-3 py-2 text-sm">
+                    <span className="flex-1 break-words">{m.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeMilestone(goal.id, m.id)}
+                      aria-label="Remove milestone"
+                      className="shrink-0 cursor-pointer text-ink-faint hover:text-danger"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={msDraft}
+                onChange={(e) => setMsDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addMs();
+                  }
+                }}
+                placeholder="Add a milestone…"
+                className={gField}
+              />
+              <button
+                type="button"
+                onClick={addMs}
+                aria-label="Add milestone"
+                className="grid h-12 w-12 shrink-0 cursor-pointer place-items-center rounded-2xl bg-primary text-white active:scale-95"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+          </div>
         </div>
       </Sheet>
     );
@@ -221,11 +274,11 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
                 / {goal.target} {goal.unit}
               </span>
             </p>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
                 onClick={() => bumpGoal(goal.id, -1)}
                 className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl surface surface-hover"
-                aria-label="Decrease"
+                aria-label="Decrease by 1"
               >
                 <Minus size={18} />
               </button>
@@ -235,10 +288,23 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
                   haptic();
                 }}
                 className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl bg-primary/20 text-primary-soft ring-1 ring-primary/30 hover:bg-primary/30"
-                aria-label="Increase"
+                aria-label="Increase by 1"
               >
                 <Plus size={18} />
               </button>
+              {[5, 10, 25].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => {
+                    bumpGoal(goal.id, d);
+                    haptic(8);
+                  }}
+                  aria-label={`Increase by ${d}`}
+                  className="cursor-pointer rounded-xl surface px-3 py-2 text-xs font-semibold text-ink-mute surface-hover"
+                >
+                  +{d}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -281,6 +347,7 @@ function GoalSheet({ goal, onClose }: { goal: Goal | null; onClose: () => void }
           </button>
           <button
             onClick={() => {
+              if (!confirm(`Delete "${goal.title}"? This can't be undone.`)) return;
               removeGoal(goal.id);
               onClose();
             }}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { PlanItem } from "../types";
 import { useStore, itemsForDate } from "../store/useStore";
 import { todayISO } from "../lib/date";
@@ -63,6 +63,7 @@ function Row({
   isLast: boolean;
   onOpen: () => void;
 }) {
+  const reduce = useReducedMotion();
   const M = taskMeta[item.type];
   const Icon = M.icon;
   const done = item.status === "done";
@@ -70,7 +71,7 @@ function Row({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={reduce ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={onOpen}
       className="flex cursor-pointer items-center gap-3 py-2.5 active:opacity-70"

@@ -10,6 +10,7 @@ import type {
   Profile,
   Repeat,
   TaskType,
+  TaskStatus,
   WeightLog,
 } from "../types";
 import {
@@ -20,9 +21,27 @@ import {
   seedWater,
   seedWeight,
 } from "../lib/seed";
-import { todayISO, shiftISO } from "../lib/date";
+import { todayISO, shiftISO, fromISO } from "../lib/date";
 
-const uid = () => Math.random().toString(36).slice(2, 10);
+const uid = (): string => {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through */
+  }
+  return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+};
+
+/** Number of days of auto-generated recurring occurrences to retain. */
+const RECURRING_RETAIN_DAYS = 90;
+
+/** Safe percentage 0–100 that never returns NaN/Infinity for a 0 or missing target. */
+export const safePct = (current: number, target: number): number => {
+  if (!target || target <= 0 || !isFinite(target)) return 0;
+  return Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+};
 
 interface State {
   profile: Profile;
@@ -35,9 +54,7 @@ interface State {
 
   // ── Account / sync / settings ──
   userId: string;
-  syncEnabled: boolean;
   remindersEnabled: boolean;
-  setSyncEnabled: (on: boolean) => void;
   setRemindersEnabled: (on: boolean) => void;
   completeOnboarding: (patch: Partial<Profile>) => void;
   importData: (snapshot: Partial<State>) => void;
@@ -60,11 +77,19 @@ interface State {
   setItemStatus: (id: string, status: PlanItem["status"]) => void;
   bumpProgress: (id: string, delta: number) => void;
   removeItem: (id: string) => void;
+  /** remove a recurring template and all of its generated occurrences */
+  removeSeries: (id: string) => void;
+  /** remove this occurrence + all later ones, and stop future generation */
+  removeFollowing: (id: string) => void;
   addSubtask: (itemId: string, title: string) => void;
   toggleSubtask: (itemId: string, subId: string) => void;
   removeSubtask: (itemId: string, subId: string) => void;
   /** materialise recurring templates as concrete occurrences for `date` */
   ensureRecurring: (date: string) => void;
+  /** materialise recurring occurrences for every date in `dates` in one pass */
+  ensureRecurringRange: (dates: string[]) => void;
+  /** drop stale, untouched auto-generated occurrences to bound storage growth */
+  pruneGenerated: () => void;
 
   // ── Goals ──
   addGoal: (input: {
@@ -76,7 +101,10 @@ interface State {
   }) => void;
   updateGoal: (id: string, patch: Partial<Goal>) => void;
   bumpGoal: (id: string, delta: number) => void;
+  setGoalCurrent: (id: string, value: number) => void;
+  addMilestone: (goalId: string, title: string) => void;
   toggleMilestone: (goalId: string, milestoneId: string) => void;
+  removeMilestone: (goalId: string, milestoneId: string) => void;
   removeGoal: (id: string) => void;
 
   // ── Habits ──
@@ -91,6 +119,8 @@ interface State {
   // ── Misc ──
   addWater: (ml: number) => void;
   logWeight: (kg: number) => void;
+  /** record (or overwrite) a weight reading for a specific date */
+  logWeightOn: (date: string, kg: number) => void;
   updateProfile: (patch: Partial<Profile>) => void;
   exportData: () => string;
   resetData: () => void;
@@ -107,11 +137,9 @@ export const useStore = create<State>()(
       weight: seedWeight,
       water: seedWater,
 
-      userId: uid() + uid(),
-      syncEnabled: false,
+      userId: uid(),
       remindersEnabled: false,
 
-      setSyncEnabled: (on) => set({ syncEnabled: on }),
       setRemindersEnabled: (on) => set({ remindersEnabled: on }),
       completeOnboarding: (patch) =>
         set((s) => ({ profile: { ...s.profile, ...patch, onboarded: true } })),
@@ -160,29 +188,57 @@ export const useStore = create<State>()(
           };
         }),
 
-      ensureRecurring: (date) =>
+      ensureRecurring: (date) => get().ensureRecurringRange([date]),
+
+      ensureRecurringRange: (dates) =>
         set((s) => {
           const additions: PlanItem[] = [];
-          for (const t of s.items) {
-            if (!t.repeat || t.repeat === "none" || t.seriesId) continue;
-            if (date <= t.date) continue; // template already covers its own date
-            if (
-              t.repeat === "weekly" &&
-              new Date(date).getDay() !== new Date(t.date).getDay()
-            )
-              continue;
-            if (s.items.some((i) => i.seriesId === t.id && i.date === date)) continue;
-            additions.push({
-              ...t,
-              id: uid(),
-              date,
-              status: "pending",
-              seriesId: t.id,
-              progress: t.progress ? { ...t.progress, current: 0 } : undefined,
-              createdAt: Date.now(),
-            });
+          const has = (seriesId: string, date: string) =>
+            s.items.some((i) => i.seriesId === seriesId && i.date === date) ||
+            additions.some((i) => i.seriesId === seriesId && i.date === date);
+          for (const date of dates) {
+            for (const t of s.items) {
+              if (!t.repeat || t.repeat === "none" || t.seriesId) continue;
+              if (date <= t.date) continue; // template already covers its own date
+              if (t.until && date > t.until) continue; // series has ended
+              // Use local-time weekday (fromISO), consistent with the rest of the
+              // app — `new Date("yyyy-MM-dd")` is UTC and can be off by a day.
+              if (
+                t.repeat === "weekly" &&
+                fromISO(date).getDay() !== fromISO(t.date).getDay()
+              )
+                continue;
+              if (has(t.id, date)) continue;
+              additions.push({
+                ...t,
+                id: uid(),
+                date,
+                status: "pending",
+                seriesId: t.id,
+                progress: t.progress ? { ...t.progress, current: 0 } : undefined,
+                createdAt: Date.now(),
+              });
+            }
           }
           return additions.length ? { items: [...s.items, ...additions] } : {};
+        }),
+
+      pruneGenerated: () =>
+        set((s) => {
+          const cutoff = shiftISO(todayISO(), -RECURRING_RETAIN_DAYS);
+          const kept = s.items.filter((i) => {
+            if (!i.seriesId) return true; // never drop a user-authored template
+            if (i.date >= cutoff) return true; // keep recent occurrences
+            // Old auto-generated occurrence: keep ONLY if the user touched it
+            // (completed/skipped, moved a counter, or checked a step), so streaks
+            // and history are preserved while untouched filler is reclaimed.
+            const touched =
+              i.status !== "pending" ||
+              (i.progress?.current ?? 0) > 0 ||
+              (i.subtasks?.some((st) => st.done) ?? false);
+            return touched;
+          });
+          return kept.length !== s.items.length ? { items: kept } : {};
         }),
 
       updateItem: (id, patch) =>
@@ -197,10 +253,16 @@ export const useStore = create<State>()(
               ? {
                   ...i,
                   status,
+                  // Completing an item reconciles its sub-state so the card,
+                  // progress bar and checklist never disagree.
                   progress:
                     status === "done" && i.progress
                       ? { ...i.progress, current: i.progress.target }
                       : i.progress,
+                  subtasks:
+                    status === "done" && i.subtasks
+                      ? i.subtasks.map((st) => ({ ...st, done: true }))
+                      : i.subtasks,
                 }
               : i,
           ),
@@ -225,6 +287,41 @@ export const useStore = create<State>()(
 
       removeItem: (id) =>
         set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
+
+      removeSeries: (id) =>
+        set((s) => {
+          const item = s.items.find((i) => i.id === id);
+          if (!item) return {};
+          // The template id is the item's own id (template) or its seriesId (occurrence).
+          const templateId = item.seriesId ?? item.id;
+          return {
+            items: s.items.filter(
+              (i) => i.id !== templateId && i.seriesId !== templateId,
+            ),
+          };
+        }),
+
+      removeFollowing: (id) =>
+        set((s) => {
+          const item = s.items.find((i) => i.id === id);
+          if (!item) return {};
+          const templateId = item.seriesId ?? item.id;
+          const cutoff = item.date;
+          return {
+            items: s.items
+              // Drop this occurrence and every later one in the series…
+              .filter((i) => {
+                const inSeries = i.id === templateId || i.seriesId === templateId;
+                return !(inSeries && i.date >= cutoff);
+              })
+              // …and cap the template so it never regenerates past the cutoff.
+              .map((i) =>
+                i.id === templateId
+                  ? { ...i, until: shiftISO(cutoff, -1) }
+                  : i,
+              ),
+          };
+        }),
 
       addSubtask: (itemId, title) =>
         set((s) => {
@@ -258,6 +355,11 @@ export const useStore = create<State>()(
               ...i,
               subtasks,
               status: allDone ? "done" : i.status === "done" ? "pending" : i.status,
+              // Keep a progress counter in lock-step with a fully-checked list.
+              progress:
+                allDone && i.progress
+                  ? { ...i.progress, current: i.progress.target }
+                  : i.progress,
             };
           }),
         })),
@@ -280,7 +382,9 @@ export const useStore = create<State>()(
               title: input.title.trim(),
               category: input.category,
               current: 0,
-              target: input.target,
+              // A goal must have a positive target; clamp defensively so the
+              // progress maths can never divide by zero.
+              target: input.target > 0 ? input.target : 1,
               unit: input.unit,
               deadline: input.deadline,
               milestones: [],
@@ -306,6 +410,28 @@ export const useStore = create<State>()(
           ),
         })),
 
+      setGoalCurrent: (id, value) =>
+        set((s) => ({
+          goals: s.goals.map((g) =>
+            g.id === id
+              ? { ...g, current: Math.max(0, Math.min(g.target, value)) }
+              : g,
+          ),
+        })),
+
+      addMilestone: (goalId, title) =>
+        set((s) => {
+          const t = title.trim();
+          if (!t) return {};
+          return {
+            goals: s.goals.map((g) =>
+              g.id === goalId
+                ? { ...g, milestones: [...g.milestones, { id: uid(), title: t, done: false }] }
+                : g,
+            ),
+          };
+        }),
+
       toggleMilestone: (goalId, milestoneId) =>
         set((s) => ({
           goals: s.goals.map((g) =>
@@ -316,6 +442,15 @@ export const useStore = create<State>()(
                     m.id === milestoneId ? { ...m, done: !m.done } : m,
                   ),
                 }
+              : g,
+          ),
+        })),
+
+      removeMilestone: (goalId, milestoneId) =>
+        set((s) => ({
+          goals: s.goals.map((g) =>
+            g.id === goalId
+              ? { ...g, milestones: g.milestones.filter((m) => m.id !== milestoneId) }
               : g,
           ),
         })),
@@ -368,15 +503,19 @@ export const useStore = create<State>()(
           return { water: { ...s.water, [t]: Math.max(0, (s.water[t] ?? 0) + ml) } };
         }),
 
-      logWeight: (kg) =>
+      logWeight: (kg) => get().logWeightOn(todayISO(), kg),
+
+      logWeightOn: (date, kg) =>
         set((s) => {
-          const t = todayISO();
-          const rest = s.weight.filter((w) => w.date !== t);
+          const rest = s.weight.filter((w) => w.date !== date);
+          const weight = [...rest, { date, kg }].sort((a, b) =>
+            a.date.localeCompare(b.date),
+          );
+          // Mirror to the profile only when this is the most recent reading.
+          const latest = weight[weight.length - 1];
           return {
-            weight: [...rest, { date: t, kg }].sort((a, b) =>
-              a.date.localeCompare(b.date),
-            ),
-            profile: { ...s.profile, weightKg: kg },
+            weight,
+            profile: latest.date === date ? { ...s.profile, weightKg: kg } : s.profile,
           };
         }),
 
@@ -441,12 +580,17 @@ export const searchItems = (
   items: PlanItem[],
   query: string,
   tag?: string,
+  opts?: { type?: TaskType; status?: TaskStatus },
 ): PlanItem[] => {
   const q = query.trim().toLowerCase();
-  if (!q && !tag) return [];
+  const type = opts?.type;
+  const status = opts?.status;
+  if (!q && !tag && !type && !status) return [];
   return items
     .filter((i) => {
       if (tag && !(i.tags ?? []).includes(tag)) return false;
+      if (type && i.type !== type) return false;
+      if (status && i.status !== status) return false;
       if (!q) return true;
       const hay = [
         i.title,
@@ -496,3 +640,24 @@ export const habitStreak = (habit: Habit): number => {
   }
   return streak;
 };
+
+/** Longest run of consecutive logged days a habit has ever had. */
+export const longestHabitStreak = (habit: Habit): number => {
+  const days = Object.keys(habit.log)
+    .filter((d) => habit.log[d])
+    .sort();
+  let best = 0;
+  let cur = 0;
+  let prev = "";
+  for (const d of days) {
+    cur = prev && shiftISO(prev, 1) === d ? cur + 1 : 1;
+    if (cur > best) best = cur;
+    prev = d;
+  }
+  return best;
+};
+
+/** A day "counts" if any task was completed or any habit was logged that day. */
+export const wasActive = (items: PlanItem[], habits: Habit[], date: string): boolean =>
+  items.some((i) => i.date === date && i.status === "done") ||
+  habits.some((h) => h.log[date]);

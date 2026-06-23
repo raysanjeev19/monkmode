@@ -12,7 +12,7 @@ import {
   CheckSquare,
 } from "lucide-react";
 import type { PlanItem } from "../types";
-import { useStore, subtaskProgress } from "../store/useStore";
+import { useStore, subtaskProgress, safePct } from "../store/useStore";
 import { cn, haptic } from "../lib/ui";
 import Sheet from "./Sheet";
 import ProgressBar from "./ProgressBar";
@@ -35,6 +35,8 @@ export default function ItemActionsSheet({
     bumpProgress,
     updateItem,
     removeItem,
+    removeSeries,
+    removeFollowing,
     addSubtask,
     toggleSubtask,
     removeSubtask,
@@ -48,9 +50,7 @@ export default function ItemActionsSheet({
 
   const done = item.status === "done";
   const skipped = item.status === "skipped";
-  const pct = item.progress
-    ? Math.round((item.progress.current / item.progress.target) * 100)
-    : 0;
+  const pct = item.progress ? safePct(item.progress.current, item.progress.target) : 0;
   const sub = subtaskProgress(item);
 
   const close = () => {
@@ -128,18 +128,34 @@ export default function ItemActionsSheet({
                 <button
                   onClick={() => bumpProgress(item.id, -1)}
                   className="grid h-11 w-11 cursor-pointer place-items-center rounded-2xl surface surface-hover"
-                  aria-label="Decrease"
+                  aria-label="Decrease by 1"
                 >
                   <Minus size={18} />
                 </button>
-                <span className="min-w-14 text-center text-2xl font-bold">{item.progress.current}</span>
+                <span className="min-w-14 text-center text-2xl font-bold tabular-nums">{item.progress.current}</span>
                 <button
                   onClick={() => bumpProgress(item.id, 1)}
                   className="grid h-11 w-11 cursor-pointer place-items-center rounded-2xl bg-primary/20 text-primary-soft ring-1 ring-primary/30 hover:bg-primary/30"
-                  aria-label="Increase"
+                  aria-label="Increase by 1"
                 >
                   <Plus size={18} />
                 </button>
+              </div>
+              {/* Quick steps for large targets (e.g. study minutes). */}
+              <div className="mt-2 flex justify-center gap-2">
+                {[-10, -5, 5, 10].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => {
+                      bumpProgress(item.id, d);
+                      haptic(8);
+                    }}
+                    aria-label={d > 0 ? `Increase by ${d}` : `Decrease by ${-d}`}
+                    className="cursor-pointer rounded-xl surface px-3 py-1.5 text-xs font-semibold text-ink-mute surface-hover"
+                  >
+                    {d > 0 ? `+${d}` : d}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -256,6 +272,7 @@ export default function ItemActionsSheet({
             </button>
             <button
               onClick={() => {
+                if (!confirm(`Delete "${item.title}"?`)) return;
                 removeItem(item.id);
                 close();
               }}
@@ -264,6 +281,32 @@ export default function ItemActionsSheet({
               <Trash2 size={18} /> Delete
             </button>
           </div>
+
+          {/* Recurring items: remove just the rest of the series, or all of it. */}
+          {(item.repeat || item.seriesId) && (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  if (!confirm("Delete this and all upcoming repeats? Past ones are kept.")) return;
+                  removeFollowing(item.id);
+                  close();
+                }}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-danger ring-1 ring-danger/30 active:scale-[0.98]"
+              >
+                <Trash2 size={16} /> This &amp; upcoming
+              </button>
+              <button
+                onClick={() => {
+                  if (!confirm("Delete every occurrence of this repeating task?")) return;
+                  removeSeries(item.id);
+                  close();
+                }}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium text-danger ring-1 ring-danger/30 active:scale-[0.98]"
+              >
+                <Trash2 size={16} /> Entire series
+              </button>
+            </div>
+          )}
         </div>
       )}
     </Sheet>

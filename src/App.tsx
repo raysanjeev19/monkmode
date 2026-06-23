@@ -1,17 +1,31 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useStore } from "./store/useStore";
 import { todayISO } from "./lib/date";
 import { useReminders } from "./lib/useReminders";
+import { useFocusTicker } from "./lib/useFocusTicker";
 import { useAuth } from "./lib/auth";
 import { isFirebaseConfigured } from "./lib/firebase";
 import { startCloudSync, stopCloudSync } from "./lib/sync";
 import BottomNav from "./components/BottomNav";
 import DraggableFab from "./components/DraggableFab";
 import Onboarding from "./components/Onboarding";
+import ErrorBoundary from "./components/ErrorBoundary";
+import OfflineBanner from "./components/OfflineBanner";
+import BootSplash from "./components/BootSplash";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
+
+/** How long the branded launch screen stays up on open (ms). */
+const SPLASH_MS = 1200;
 
 // Code-split the heavier tabs (Progress pulls in Recharts).
 const Planner = lazy(() => import("./pages/Planner"));
@@ -35,7 +49,7 @@ function Splash() {
       <motion.img
         src="/logo.png"
         alt="MonkMode"
-        className="h-20 w-20 object-contain drop-shadow-[0_8px_24px_rgba(237,125,28,0.45)]"
+        className="h-24 w-24 object-contain drop-shadow-[0_8px_24px_rgba(225,29,42,0.4)]"
         initial={{ scale: 0.9, opacity: 0.7 }}
         animate={{ scale: [0.9, 1, 0.9], opacity: [0.7, 1, 0.7] }}
         transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
@@ -46,14 +60,15 @@ function Splash() {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const reduce = useReducedMotion();
   return (
     <AnimatePresence mode="wait">
       <motion.main
         key={location.pathname}
-        initial={{ opacity: 0, y: 8 }}
+        initial={reduce ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.22, ease: "easeOut" }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
+        transition={{ duration: reduce ? 0 : 0.22, ease: "easeOut" }}
         className="mx-auto w-full max-w-md px-3 pb-36 pt-safe"
       >
         <Suspense fallback={<PageFallback />}>
@@ -64,6 +79,8 @@ function AnimatedRoutes() {
             <Route path="/progress" element={<Progress />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/focus" element={<Focus />} />
+            {/* Unknown routes fall back to Home instead of a blank page. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </motion.main>
@@ -71,22 +88,67 @@ function AnimatedRoutes() {
   );
 }
 
+/**
+ * Hardware back-button handling for the installed app (Android PWA / APK).
+ * Mimics Swiggy/Zomato: a back press navigates to Home in-app, and a second
+ * back press at Home exits the app — never a blank/white screen. Disabled in a
+ * normal browser tab so the browser's own back behaviour is left untouched.
+ */
+function BackGuard() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (!standalone) return;
+
+    // Seed a guard entry so the first back press is caught in-app.
+    window.history.pushState(null, "", window.location.href);
+
+    const onPop = () => {
+      if (window.location.pathname !== "/") {
+        // Deep page → jump Home in-app (replace, so history doesn't grow), and
+        // re-arm the guard so the next back is caught here too.
+        navigate("/", { replace: true });
+        window.history.pushState(null, "", window.location.href);
+        return;
+      }
+      // Already Home → stop guarding and let this back propagate so the app
+      // actually closes (instead of a confirm/blank page).
+      window.removeEventListener("popstate", onPop);
+      window.history.back();
+    };
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [navigate]);
+
+  return null;
+}
+
 function MainApp() {
   const onboarded = useStore((s) => s.profile.onboarded);
   const ensureRecurring = useStore((s) => s.ensureRecurring);
+  const pruneGenerated = useStore((s) => s.pruneGenerated);
 
-  // Materialise recurring tasks for today on launch
+  // Materialise recurring tasks for today on launch, and reclaim stale
+  // auto-generated occurrences so stored state can't grow without bound.
   useEffect(() => {
+    pruneGenerated();
     ensureRecurring(todayISO());
-  }, [ensureRecurring]);
+  }, [ensureRecurring, pruneGenerated]);
 
   useReminders();
+  useFocusTicker();
 
   if (!onboarded) return <Onboarding />;
 
   return (
     <BrowserRouter>
-      <div className="relative min-h-screen pt-2">
+      <div className="relative min-h-screen">
+        <OfflineBanner />
+        <BackGuard />
         <AnimatedRoutes />
         <DraggableFab />
         <BottomNav />
@@ -99,12 +161,23 @@ export default function App() {
   const theme = useStore((s) => s.profile.theme);
   const { user, loading } = useAuth();
   const [syncing, setSyncing] = useState(false);
+  const [booting, setBooting] = useState(true);
 
   // Keep <html> theme class in sync app-wide (Profile also sets it)
   useEffect(() => {
     document.documentElement.classList.toggle("light", theme === "light");
     document.documentElement.classList.toggle("dark", theme === "dark");
+    // Match the browser/PWA status bar to the current theme so it never shows
+    // a stray cream/white strip in dark mode.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#151210" : "#FBF4E9");
   }, [theme]);
+
+  // Hold the branded launch screen for a fixed minimum on every open.
+  useEffect(() => {
+    const t = window.setTimeout(() => setBooting(false), SPLASH_MS);
+    return () => window.clearTimeout(t);
+  }, []);
 
   // Start/stop cloud sync as the signed-in user changes.
   useEffect(() => {
@@ -117,12 +190,29 @@ export default function App() {
     stopCloudSync();
   }, [user]);
 
-  // ── Local-only mode (Firebase not configured yet) ──
-  if (!isFirebaseConfigured) return <MainApp />;
+  const content = (() => {
+    // ── Local-only mode (Firebase not configured yet) ──
+    if (!isFirebaseConfigured)
+      return (
+        <ErrorBoundary>
+          <MainApp />
+        </ErrorBoundary>
+      );
+    // ── Authenticated mode ──
+    if (loading) return <Splash />;
+    if (!user) return <Login />;
+    if (syncing) return <Splash />;
+    return (
+      <ErrorBoundary>
+        <MainApp />
+      </ErrorBoundary>
+    );
+  })();
 
-  // ── Authenticated mode ──
-  if (loading) return <Splash />;
-  if (!user) return <Login />;
-  if (syncing) return <Splash />;
-  return <MainApp />;
+  return (
+    <>
+      {content}
+      <AnimatePresence>{booting && <BootSplash key="boot" />}</AnimatePresence>
+    </>
+  );
 }

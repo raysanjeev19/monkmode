@@ -19,7 +19,6 @@ const toMinutes = (hhmm: string): number => {
  */
 export function useReminders() {
   const enabled = useStore((s) => s.remindersEnabled);
-  const items = useStore((s) => s.items);
   // remember what we've already fired, keyed by `${date}:${id}` so it resets
   // naturally across days and never double-notifies within a day.
   const fired = useRef<Set<string>>(new Set());
@@ -32,7 +31,8 @@ export function useReminders() {
       const now = new Date();
       const nowMin = now.getHours() * 60 + now.getMinutes();
 
-      for (const it of itemsForDate(items, today)) {
+      // Read items live so the interval doesn't restart on every edit.
+      for (const it of itemsForDate(useStore.getState().items, today)) {
         if (it.status !== "pending" || !it.time) continue;
         const due = toMinutes(it.time);
         // fire when we're at-or-just-past the time (within a 2-min window)
@@ -50,6 +50,13 @@ export function useReminders() {
 
     const id = setInterval(tick, 30_000);
     tick();
-    return () => clearInterval(id);
-  }, [enabled, items]);
+    // Re-check the moment the app returns to the foreground (background tab
+    // timers are throttled, so a due task may have been missed while hidden).
+    const onVisible = () => document.visibilityState === "visible" && tick();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [enabled]);
 }

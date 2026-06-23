@@ -77,11 +77,14 @@ export function monthIndexForDate(plan: WorkoutPlan, dateISO: string): number {
   return Math.max(0, Math.min(plan.months.length - 1, offset));
 }
 
+const EMPTY_DAY: DayWorkout = { warmup: "", groups: [] };
+
 export function resolveWorkout(plan: WorkoutPlan, dateISO: string): ResolvedWorkout {
   const monthIndex = monthIndexForDate(plan, dateISO);
   const month = plan.months[monthIndex];
   const weekday = weekdayOf(dateISO);
-  const day = month.days[weekday];
+  // Defensive: a malformed/partial plan must not crash the whole app.
+  const day = month?.days?.[weekday] ?? EMPTY_DAY;
   const setCount = day.groups.reduce(
     (sum, g) =>
       sum + g.exercises.reduce((s, e) => s + (parseInt(e.sets, 10) || 0), 0),
@@ -90,10 +93,10 @@ export function resolveWorkout(plan: WorkoutPlan, dateISO: string): ResolvedWork
   const exerciseCount = day.groups.reduce((sum, g) => sum + g.exercises.length, 0);
   return {
     monthIndex,
-    phase: month.phase,
-    repRange: month.repRange,
+    phase: month?.phase ?? "",
+    repRange: month?.repRange ?? "",
     weekday,
-    splitLabel: plan.split[weekday],
+    splitLabel: plan.split?.[weekday] ?? weekday,
     day,
     exerciseCount,
     setCount,
@@ -101,11 +104,19 @@ export function resolveWorkout(plan: WorkoutPlan, dateISO: string): ResolvedWork
 }
 
 // ── Which users get the baked-in Recomp plan ────────────────────────────────
-// Everyone else uses a plan they create/upload themselves (coming next).
-const RECOMP_EMAILS = new Set([
-  "raysanjeev19@gmail.com",
-  "jharatan6290@gmail.com",
-]);
+// The two coach accounts always get it; extra addresses can be added via the
+// VITE_RECOMP_EMAILS env var (comma-separated). Everyone else uses a plan they
+// create/upload themselves (coming next).
+const RECOMP_EMAILS = new Set(
+  [
+    "raysanjeev19@gmail.com",
+    "jharatan6290@gmail.com",
+    ...((import.meta.env.VITE_RECOMP_EMAILS as string | undefined)
+      ?.split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean) ?? []),
+  ],
+);
 
 export function hasBakedPlan(email?: string | null): boolean {
   return !!email && RECOMP_EMAILS.has(email.trim().toLowerCase());

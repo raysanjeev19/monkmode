@@ -1,15 +1,29 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="112" fill="#0F172A"/>
-  <rect width="512" height="512" rx="112" fill="url(#g)" fill-opacity="0.18"/>
-  <path d="M300 96 L168 280 H244 L212 416 L356 220 H276 L300 96 Z" fill="url(#bolt)"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-label="MonkMode">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7C3AED"/>
-      <stop offset="1" stop-color="#0F172A"/>
+    <linearGradient id="mm-bg" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBAE50"/>
+      <stop offset="0.55" stop-color="#ED7D1C"/>
+      <stop offset="1" stop-color="#C9610C"/>
     </linearGradient>
-    <linearGradient id="bolt" x1="168" y1="96" x2="356" y2="416" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8B5CF6"/>
-      <stop offset="1" stop-color="#7C3AED"/>
-    </linearGradient>
+    <radialGradient id="mm-halo" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="60%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
   </defs>
+
+  <!-- app tile -->
+  <rect width="512" height="512" rx="112" fill="url(#mm-bg)"/>
+
+  <!-- rising-sun halo -->
+  <circle cx="256" cy="206" r="150" fill="url(#mm-halo)"/>
+
+  <!-- meditating monk silhouette -->
+  <g fill="#FFF7EC">
+    <circle cx="256" cy="178" r="48"/>
+    <path d="M100 404 C100 296 170 228 256 228 C342 228 412 296 412 404 C412 416 404 420 392 420 L120 420 C108 420 100 416 100 404 Z"/>
+  </g>
+
+  <!-- folded hands resting in the lap -->
+  <ellipse cx="256" cy="372" rx="62" ry="25" fill="#C9610C" fill-opacity="0.45"/>
 </svg>

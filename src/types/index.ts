@@ -28,6 +28,8 @@ export interface PlanItem {
   priority?: Priority;
   /** recurrence on the template item */
   repeat?: Repeat;
+  /** inclusive last date the template should still generate occurrences for */
+  until?: string;
   /** set on generated occurrences — points at the template item id */
   seriesId?: ID;
   /** free-form labels for filtering/search, e.g. ["work", "urgent"] */

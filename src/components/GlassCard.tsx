@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
 import { cn } from "../lib/ui";
 
@@ -11,11 +11,12 @@ interface Props {
 }
 
 export default function GlassCard({ children, className, index = 0, onClick }: Props) {
+  const reduce = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={reduce ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index * 0.05, 0.3), ease: "easeOut" }}
+      transition={{ duration: reduce ? 0 : 0.3, delay: reduce ? 0 : Math.min(index * 0.05, 0.3), ease: "easeOut" }}
       onClick={onClick}
       className={cn(
         "glass rounded-lg p-4",

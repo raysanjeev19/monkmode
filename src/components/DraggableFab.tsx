@@ -1,9 +1,18 @@
 import { useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useMotionValue } from "framer-motion";
 import { Plus } from "lucide-react";
 import { haptic } from "../lib/ui";
 import QuickAddSheet, { type AddMode } from "./QuickAddSheet";
+
+const POS_KEY = "monkmode-fab-pos";
+function loadPos(): { x: number; y: number } {
+  try {
+    return JSON.parse(localStorage.getItem(POS_KEY) || "") || { x: 0, y: 0 };
+  } catch {
+    return { x: 0, y: 0 };
+  }
+}
 
 /**
  * Floating "+" quick-add button the user can drag anywhere on screen.
@@ -16,6 +25,11 @@ export default function DraggableFab() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const mode: AddMode = pathname.startsWith("/goals") ? "goal" : "task";
+
+  // Remember where the user parked the button between sessions.
+  const initial = useRef(loadPos());
+  const x = useMotionValue(initial.current.x);
+  const y = useMotionValue(initial.current.y);
 
   return (
     <>
@@ -31,6 +45,13 @@ export default function DraggableFab() {
             movedRef.current = true;
             haptic(8);
           }}
+          onDragEnd={() => {
+            try {
+              localStorage.setItem(POS_KEY, JSON.stringify({ x: x.get(), y: y.get() }));
+            } catch {
+              /* storage unavailable */
+            }
+          }}
           onClick={() => {
             // ignore the click that fires at the end of a drag
             if (movedRef.current) {
@@ -43,9 +64,8 @@ export default function DraggableFab() {
           whileTap={{ scale: 0.92 }}
           whileDrag={{ scale: 1.08 }}
           // start near bottom-right, above the nav bar
-          initial={{ x: 0, y: 0 }}
-          className="pointer-events-auto absolute bottom-24 right-2 grid h-15 w-15 cursor-grab touch-none place-items-center rounded-full bg-gradient-to-br from-primary-soft to-primary-dim text-white shadow-glow ring-4 ring-bg active:cursor-grabbing"
-          style={{ height: 60, width: 60 }}
+          className="pointer-events-auto absolute bottom-24 right-2 grid cursor-grab touch-none place-items-center rounded-full bg-gradient-to-br from-primary-soft to-primary-dim text-white shadow-glow ring-4 ring-bg active:cursor-grabbing"
+          style={{ x, y, height: 60, width: 60 }}
         >
           <Plus size={28} />
         </motion.button>

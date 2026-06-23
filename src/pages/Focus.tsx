@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import {
   Play,
   Pause,
@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { useFocus, remainingNow, durationFor, type Phase } from "../store/useFocus";
 import { cn, haptic } from "../lib/ui";
-import { showNotification, notifyPermission } from "../lib/notify";
 import GlassCard from "../components/GlassCard";
 import ProgressRing from "../components/ProgressRing";
 
@@ -28,32 +27,10 @@ const mmss = (ms: number) => {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
-/** Short chime when a phase ends (best-effort; silent if audio is blocked). */
-function chime() {
-  try {
-    const Ctx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.6);
-  } catch {
-    /* no audio available */
-  }
-}
-
 export default function Focus() {
   const s = useFocus();
   const navigate = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const [, forceTick] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -71,30 +48,11 @@ export default function Focus() {
     }
   }, [params, setParams]);
 
-  // Drive the countdown + detect phase completion.
+  // Re-render the live clock while this screen is open. Phase completion,
+  // chime and notifications are handled app-wide by useFocusTicker(), so a
+  // session still finishes correctly even after navigating away.
   useEffect(() => {
-    const id = setInterval(() => {
-      const st = useFocus.getState();
-      if (st.running && remainingNow(st) <= 0) {
-        const finished = st.phase;
-        st.complete();
-        haptic(40);
-        chime();
-        if (notifyPermission() === "granted") {
-          void showNotification(
-            finished === "work" ? "Focus session done 🎯" : "Break over — back to it 💪",
-            {
-              body:
-                finished === "work"
-                  ? "Nice work. Time for a break."
-                  : "Break finished. Start your next focus session.",
-              tag: "focus-phase",
-            },
-          );
-        }
-      }
-      forceTick((n) => n + 1);
-    }, 250);
+    const id = setInterval(() => forceTick((n) => n + 1), 250);
     return () => clearInterval(id);
   }, []);
 
@@ -107,7 +65,7 @@ export default function Focus() {
     <div className="space-y-4">
       <header className="flex items-center justify-between">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => (location.key === "default" ? navigate("/") : navigate(-1))}
           aria-label="Back"
           className="grid h-10 w-10 cursor-pointer place-items-center rounded-2xl surface surface-hover"
         >

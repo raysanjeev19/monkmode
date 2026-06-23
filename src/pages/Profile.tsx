@@ -2,12 +2,10 @@ import { useEffect, useState } from "react";
 import {
   Moon,
   Sun,
-  Download,
   Trash2,
   Plus,
   Check,
   Flame,
-  Share2,
   BellRing,
   LogOut,
 } from "lucide-react";
@@ -17,13 +15,9 @@ import { todayISO, formatLong } from "../lib/date";
 import { requestNotifyPermission, notifySupported } from "../lib/notify";
 import { auth, isFirebaseConfigured } from "../lib/firebase";
 import { logout } from "../lib/auth";
+import { stopCloudSync } from "../lib/sync";
 import GlassCard from "../components/GlassCard";
 import QuickAddSheet from "../components/QuickAddSheet";
-
-interface BIPEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: string }>;
-}
 
 const fieldCls =
   "w-full rounded-2xl border hairline surface px-4 py-3 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/30";
@@ -36,17 +30,17 @@ export default function Profile() {
     remindersEnabled,
     setRemindersEnabled,
     updateProfile,
+    logWeight,
     addHabit,
     toggleHabit,
     removeHabit,
     removeNote,
-    exportData,
     resetData,
   } = useStore();
 
   const [newHabit, setNewHabit] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
-  const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null);
+  const [showAllNotes, setShowAllNotes] = useState(false);
   const today = todayISO();
 
   const toggleReminders = async () => {
@@ -61,6 +55,9 @@ export default function Profile() {
     if (!confirm("Log out of MonkMode? Your data stays safe in the cloud.")) return;
     haptic(12);
     try {
+      // Tear down sync BEFORE clearing local state, so the reset can't be
+      // mirrored up as an empty document and wipe the cloud copy.
+      stopCloudSync();
       await logout();
       // Clear this device's local copy so the next account starts clean.
       resetData();
@@ -75,42 +72,10 @@ export default function Profile() {
     document.documentElement.classList.toggle("dark", profile.theme === "dark");
   }, [profile.theme]);
 
-  // Capture install prompt
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallEvt(e as BIPEvent);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const num = (v: string) => Math.max(0, Number(v) || 0);
-
-  const doExport = () => {
-    const blob = new Blob([exportData()], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `monkmode-${today}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    haptic(12);
-  };
-
-  const doInstall = async () => {
-    if (!installEvt) return;
-    await installEvt.prompt();
-    await installEvt.userChoice;
-    setInstallEvt(null);
-  };
-
   return (
     <div className="space-y-3">
       <header className="flex items-center gap-4">
-        <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-3xl bg-primary/15 ring-1 ring-primary/25">
-          <img src="/logo.png" alt="Monk Mode" className="h-14 w-14 object-contain" />
-        </span>
+        <img src="/logo.png" alt="Monk Mode" className="h-[72px] w-[72px] shrink-0 object-contain" />
         <div>
           <h1 className="text-2xl font-bold">{profile.name}</h1>
           <p className="text-sm text-ink-mute">
@@ -128,11 +93,10 @@ export default function Profile() {
           <ToggleRow
             icon={BellRing}
             title="Reminders"
-            sub="Get a real notification when a timed task is due"
+            sub="Notified when a timed task is due, while the app is open"
             on={remindersEnabled}
             onClick={toggleReminders}
           />
-          <Row onClick={doLogout} icon={LogOut} label="Log out" tint="text-danger" />
         </GlassCard>
       )}
 
@@ -151,11 +115,13 @@ export default function Profile() {
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Weight (kg)" value={profile.weightKg} onChange={(v) => updateProfile({ weightKg: num(v) })} />
-          <Field label="Height (cm)" value={profile.heightCm} onChange={(v) => updateProfile({ heightCm: num(v) })} />
-          <Field label="Target (kg)" value={profile.targetWeightKg} onChange={(v) => updateProfile({ targetWeightKg: num(v) })} />
-          <Field label="Water goal (ml)" value={profile.waterTargetMl} onChange={(v) => updateProfile({ waterTargetMl: num(v) })} />
+          {/* Logging weight also records a dated point so the Progress chart fills in. */}
+          <Field label="Weight (kg)" value={profile.weightKg} onCommit={(n) => logWeight(n)} />
+          <Field label="Height (cm)" value={profile.heightCm} onCommit={(n) => updateProfile({ heightCm: n })} />
+          <Field label="Target (kg)" value={profile.targetWeightKg} onCommit={(n) => updateProfile({ targetWeightKg: n })} />
+          <Field label="Water goal (ml)" value={profile.waterTargetMl} onCommit={(n) => updateProfile({ waterTargetMl: Math.max(1, n) })} />
         </div>
+        <BackfillWeight />
       </GlassCard>
 
       {/* Theme */}
@@ -193,14 +159,17 @@ export default function Profile() {
                 >
                   <Check size={18} />
                 </button>
-                <span className="flex-1 text-sm font-medium">{h.title}</span>
-                <span className="flex items-center gap-1 text-xs text-warning">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{h.title}</span>
+                <span className="flex shrink-0 items-center gap-1 text-xs text-warning">
                   <Flame size={13} /> {habitStreak(h)}
                 </span>
                 <button
-                  onClick={() => removeHabit(h.id)}
+                  onClick={() => {
+                    if (!confirm(`Delete habit "${h.title}"? Its streak history will be lost.`)) return;
+                    removeHabit(h.id);
+                  }}
                   aria-label="Delete habit"
-                  className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-ink-faint hover:text-danger"
+                  className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-faint hover:text-danger"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -255,14 +224,17 @@ export default function Profile() {
           </p>
         ) : (
           <div className="space-y-2">
-            {journal.slice(0, 5).map((j) => (
+            {(showAllNotes ? journal : journal.slice(0, 5)).map((j) => (
               <div key={j.id} className="rounded-2xl surface px-4 py-3">
                 <div className="mb-1 flex items-center justify-between text-xs text-ink-mute">
                   <span>{formatLong(j.date)}</span>
                   <div className="flex items-center gap-2">
                     <span>{["😞", "😕", "😐", "🙂", "😄"][j.mood - 1]}</span>
                     <button
-                      onClick={() => removeNote(j.id)}
+                      onClick={() => {
+                        if (!confirm("Delete this journal note?")) return;
+                        removeNote(j.id);
+                      }}
                       aria-label="Delete note"
                       className="cursor-pointer text-ink-faint hover:text-danger"
                     >
@@ -270,40 +242,118 @@ export default function Profile() {
                     </button>
                   </div>
                 </div>
-                <p className="text-sm">{j.text}</p>
+                <p className="whitespace-pre-wrap break-words text-sm">{j.text}</p>
               </div>
             ))}
+            {journal.length > 5 && (
+              <button
+                onClick={() => setShowAllNotes((v) => !v)}
+                className="w-full cursor-pointer rounded-2xl py-2 text-sm font-medium text-primary surface-hover"
+              >
+                {showAllNotes ? "Show less" : `Show all ${journal.length} notes`}
+              </button>
+            )}
           </div>
         )}
       </GlassCard>
 
-      {/* Data */}
-      <GlassCard className="space-y-2 p-4" index={4}>
-        <h2 className="mb-1 font-semibold">Data</h2>
-        {installEvt && (
-          <Row onClick={doInstall} icon={Share2} label="Install app" tint="text-primary-soft" />
-        )}
-        <Row onClick={doExport} icon={Download} label="Export data (JSON)" tint="text-sky-400" />
-      </GlassCard>
+      <p className="pt-1 text-center text-xs text-ink-faint">MonkMode · v1.0 · works offline</p>
 
-      <p className="pb-2 text-center text-xs text-ink-faint">MonkMode · v1.0 · works offline</p>
+      {/* Log out — kept at the very bottom */}
+      {isFirebaseConfigured && (
+        <button
+          onClick={doLogout}
+          className="mb-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-danger/10 py-3.5 font-medium text-danger ring-1 ring-danger/30 active:scale-[0.98]"
+        >
+          <LogOut size={18} /> Log out
+        </button>
+      )}
 
       <QuickAddSheet open={noteOpen} initialMode="note" lockMode onClose={() => setNoteOpen(false)} />
     </div>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
+function Field({ label, value, onCommit }: { label: string; value: number; onCommit: (n: number) => void }) {
+  // Keep the raw string while editing so the field can be cleared/retyped
+  // without snapping to 0; commit a sanitised number on blur / Enter.
+  const [raw, setRaw] = useState(String(value));
+  useEffect(() => setRaw(String(value)), [value]);
+  const commit = () => {
+    const n = Math.max(0, Number(raw) || 0);
+    onCommit(n);
+    setRaw(String(n));
+  };
   return (
     <div>
       <label className="mb-1.5 block text-sm text-ink-mute">{label}</label>
       <input
         type="number"
         inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={raw}
+        onChange={(e) => setRaw(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
         className={fieldCls}
       />
+    </div>
+  );
+}
+
+/** Inline form to record a weight reading for a past (or any) date. */
+function BackfillWeight() {
+  const logWeightOn = useStore((s) => s.logWeightOn);
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(todayISO());
+  const [kg, setKg] = useState("");
+
+  const save = () => {
+    const n = Number(kg);
+    if (!date || !(n > 0)) return;
+    logWeightOn(date, n);
+    setKg("");
+    setOpen(false);
+    haptic(12);
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="cursor-pointer text-sm font-medium text-primary hover:underline"
+      >
+        + Log weight for another day
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-end gap-2">
+      <div className="flex-1">
+        <label className="mb-1.5 block text-sm text-ink-mute">Date</label>
+        <input
+          type="date"
+          max={todayISO()}
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={fieldCls}
+        />
+      </div>
+      <div className="w-24">
+        <label className="mb-1.5 block text-sm text-ink-mute">kg</label>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={kg}
+          onChange={(e) => setKg(e.target.value)}
+          className={fieldCls}
+        />
+      </div>
+      <button onClick={save} className="btn-primary px-4 py-3">
+        Save
+      </button>
     </div>
   );
 }
@@ -371,30 +421,6 @@ function ThemeBtn({
       )}
     >
       <Icon size={16} /> {label}
-    </button>
-  );
-}
-
-function Row({
-  onClick,
-  icon: Icon,
-  label,
-  tint,
-}: {
-  onClick: () => void;
-  icon: typeof Download;
-  label: string;
-  tint: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-2 py-3 text-left transition-colors surface-hover"
-    >
-      <span className={cn("grid h-9 w-9 place-items-center rounded-xl surface", tint)}>
-        <Icon size={18} />
-      </span>
-      <span className="font-medium">{label}</span>
     </button>
   );
 }
