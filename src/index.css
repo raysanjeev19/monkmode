@@ -122,16 +122,22 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.07);
   }
 
-  /* Bottom navigation bar: opaque themed surface, subtly darker toward the
-     bottom (same warm palette) so the 5-button bar reads as distinct — with a
-     transparent TOP so it blends into the page with no hard seam/line. */
+  /* Bottom navigation bar: a distinct raised panel that CURVES at the top-left
+     and top-right and covers the whole bottom edge of the screen (incl. the
+     safe-area), so the 5-button bar reads as a solid app surface — never blank
+     screen showing through below the buttons. */
   .bottom-nav {
-    background-color: rgb(var(--bg));
-    background-image: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--overlay) / 0.09)
-    );
+    background-color: rgb(var(--card));
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    box-shadow:
+      0 -0.5px 0 rgb(var(--line) / 0.08),
+      0 -12px 30px -18px rgba(120, 86, 46, 0.3);
+  }
+  html.dark .bottom-nav {
+    box-shadow:
+      0 -0.5px 0 rgb(255 255 255 / 0.07),
+      0 -14px 34px rgba(0, 0, 0, 0.55);
   }
 
   .glass-soft {
